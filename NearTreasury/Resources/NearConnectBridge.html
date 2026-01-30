@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEAR Connect Bridge</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        #status {
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 16px;
+        }
+        .wallet-list {
+            width: 100%;
+            max-width: 400px;
+            margin-top: 20px;
+        }
+        .wallet-button {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+        }
+        .wallet-button:hover {
+            background: #f8f8f8;
+            border-color: #007AFF;
+        }
+        .wallet-button:active {
+            transform: scale(0.98);
+        }
+        .wallet-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 16px;
+            border-radius: 10px;
+        }
+        .wallet-name {
+            font-weight: 600;
+            color: #333;
+        }
+        .wallet-desc {
+            font-size: 13px;
+            color: #888;
+            margin-top: 2px;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        .loading.active {
+            display: block;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e0e0e0;
+            border-top-color: #007AFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none !important;
+        }
+        .error {
+            color: #ff3b30;
+            padding: 16px;
+            background: #fff5f5;
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status">Initializing...</div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Connecting to wallet...</div>
+        </div>
+
+        <div id="wallet-list" class="wallet-list hidden">
+            <button class="wallet-button" onclick="connectWallet('hot')">
+                <img class="wallet-icon" src="https://wallet.hot.tg/icon-512x512.png" alt="HOT" onerror="this.style.display='none'">
+                <div>
+                    <div class="wallet-name">HOT Wallet</div>
+                    <div class="wallet-desc">Connect with Telegram</div>
+                </div>
+            </button>
+
+            <button class="wallet-button" onclick="connectWallet('mynearwallet')">
+                <img class="wallet-icon" src="https://app.mynearwallet.com/favicon.ico" alt="MyNearWallet" onerror="this.style.display='none'">
+                <div>
+                    <div class="wallet-name">MyNearWallet</div>
+                    <div class="wallet-desc">Web wallet</div>
+                </div>
+            </button>
+
+            <button class="wallet-button" onclick="connectWallet('here')">
+                <img class="wallet-icon" src="https://my.herewallet.app/favicon.ico" alt="HERE" onerror="this.style.display='none'">
+                <div>
+                    <div class="wallet-name">HERE Wallet</div>
+                    <div class="wallet-desc">Mobile wallet</div>
+                </div>
+            </button>
+
+            <button class="wallet-button" onclick="connectWallet('meteor')">
+                <img class="wallet-icon" src="https://wallet.meteorwallet.app/meteor-icon.png" alt="Meteor" onerror="this.style.display='none'">
+                <div>
+                    <div class="wallet-name">Meteor Wallet</div>
+                    <div class="wallet-desc">Browser extension</div>
+                </div>
+            </button>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@near-wallet-selector/core@8.9.13/lib/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@near-wallet-selector/my-near-wallet@8.9.13/lib/index.min.js"></script>
+    <script>
+        let walletSelector = null;
+        let wallet = null;
+        let isInitialized = false;
+        let currentNetwork = "mainnet";
+
+        function postMessage(type, data = {}) {
+            try {
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.walletBridge) {
+                    window.webkit.messageHandlers.walletBridge.postMessage({
+                        type: type,
+                        ...data
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to post message:", e);
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('error').classList.add('hidden');
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+            document.getElementById('wallet-list').classList.toggle('hidden', show);
+        }
+
+        function showWalletList() {
+            document.getElementById('wallet-list').classList.remove('hidden');
+            document.getElementById('loading').classList.remove('active');
+            updateStatus('Select a wallet to connect');
+        }
+
+        // Simple wallet connection using deep links
+        window.connectWallet = function(walletType) {
+            hideError();
+            showLoading(true);
+            updateStatus('Connecting to ' + walletType + '...');
+
+            // For now, use deep links to open wallets
+            const callbackUrl = encodeURIComponent(window.location.href);
+            let walletUrl = '';
+
+            switch(walletType) {
+                case 'mynearwallet':
+                    // MyNearWallet uses a web-based flow
+                    walletUrl = `https://app.mynearwallet.com/login/?referrer=NEAR%20Treasury&success_url=${callbackUrl}&failure_url=${callbackUrl}`;
+                    break;
+                case 'hot':
+                    // HOT Wallet - Telegram-based
+                    walletUrl = 'https://t.me/haborhealth_bot/wallet';
+                    break;
+                case 'here':
+                    // HERE Wallet
+                    walletUrl = 'https://my.herewallet.app/';
+                    break;
+                case 'meteor':
+                    // Meteor Wallet
+                    walletUrl = 'https://wallet.meteorwallet.app/';
+                    break;
+                default:
+                    showError('Unknown wallet type');
+                    showLoading(false);
+                    return;
+            }
+
+            // Open wallet in Safari
+            postMessage('openWallet', { url: walletUrl, walletType: walletType });
+
+            // Also try to open directly
+            window.open(walletUrl, '_blank');
+
+            setTimeout(() => {
+                showLoading(false);
+                showWalletList();
+                updateStatus('Wallet opened. Complete sign-in there, then return.');
+            }, 2000);
+        };
+
+        window.initConnector = function(network) {
+            currentNetwork = network || "mainnet";
+            updateStatus("Ready to connect");
+            isInitialized = true;
+            showWalletList();
+            postMessage("ready");
+        };
+
+        window.connect = function() {
+            showWalletList();
+        };
+
+        window.disconnect = function() {
+            wallet = null;
+            postMessage("signOut");
+            updateStatus("Disconnected");
+            showWalletList();
+        };
+
+        // Manual account entry for testing
+        window.manualConnect = function(accountId) {
+            if (accountId && accountId.includes('.near')) {
+                wallet = { accountId: accountId };
+                postMessage("signIn", { accounts: [{ accountId: accountId }] });
+                updateStatus("Connected: " + accountId);
+                document.getElementById('wallet-list').classList.add('hidden');
+            }
+        };
+
+        window.signAndSendTransactions = async function(transactionsJson) {
+            if (!wallet) {
+                const error = "Wallet not connected";
+                postMessage("error", { message: error });
+                throw new Error(error);
+            }
+
+            // This would require actual wallet integration
+            postMessage("error", { message: "Transaction signing requires native wallet integration" });
+            throw new Error("Transaction signing requires native wallet integration");
+        };
+
+        window.getAccounts = function() {
+            if (!wallet) {
+                return JSON.stringify([]);
+            }
+            return JSON.stringify([{ accountId: wallet.accountId }]);
+        };
+
+        window.isConnected = function() {
+            return wallet !== null;
+        };
+
+        window.isReady = function() {
+            return isInitialized;
+        };
+
+        // Add a simple manual connection input for development
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStatus("Loading...");
+
+            // Add manual connection option
+            const container = document.querySelector('.container');
+            const manualDiv = document.createElement('div');
+            manualDiv.style.cssText = 'margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; width: 100%; max-width: 400px; text-align: center;';
+            manualDiv.innerHTML = `
+                <div style="color: #888; font-size: 14px; margin-bottom: 12px;">Or enter account manually (for testing):</div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="manual-account" placeholder="account.near"
+                           style="flex: 1; padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    <button onclick="manualConnect(document.getElementById('manual-account').value)"
+                            style="padding: 12px 20px; background: #007AFF; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                        Connect
+                    </button>
+                </div>
+            `;
+            container.appendChild(manualDiv);
+        });
+    </script>
+</body>
+</html>

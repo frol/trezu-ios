@@ -1,0 +1,627 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E10000000000000000000001 /* NearTreasuryApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000101 /* NearTreasuryApp.swift */; };
+		E10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000102 /* ContentView.swift */; };
+		E10000000000000000000003 /* Treasury.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000103 /* Treasury.swift */; };
+		E10000000000000000000004 /* Asset.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000104 /* Asset.swift */; };
+		E10000000000000000000005 /* Proposal.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000105 /* Proposal.swift */; };
+		E10000000000000000000006 /* Member.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000106 /* Member.swift */; };
+		E10000000000000000000007 /* Policy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000107 /* Policy.swift */; };
+		E10000000000000000000008 /* Activity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000108 /* Activity.swift */; };
+		E10000000000000000000009 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000109 /* Endpoints.swift */; };
+		E10000000000000000000010 /* TreasuryAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000110 /* TreasuryAPIClient.swift */; };
+		E10000000000000000000011 /* WalletManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000111 /* WalletManager.swift */; };
+		E10000000000000000000012 /* NearConnectWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000112 /* NearConnectWebView.swift */; };
+		E10000000000000000000013 /* TransactionBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000113 /* TransactionBuilder.swift */; };
+		E10000000000000000000014 /* WalletConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000114 /* WalletConnectionView.swift */; };
+		E10000000000000000000015 /* WalletConnectionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000115 /* WalletConnectionViewModel.swift */; };
+		E10000000000000000000016 /* TreasuryListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000116 /* TreasuryListView.swift */; };
+		E10000000000000000000017 /* TreasuryListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000117 /* TreasuryListViewModel.swift */; };
+		E10000000000000000000018 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000118 /* DashboardView.swift */; };
+		E10000000000000000000019 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000119 /* DashboardViewModel.swift */; };
+		E10000000000000000000020 /* AssetsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000120 /* AssetsSection.swift */; };
+		E10000000000000000000021 /* RecentActivitySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000121 /* RecentActivitySection.swift */; };
+		E10000000000000000000022 /* PendingRequestsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000122 /* PendingRequestsSection.swift */; };
+		E10000000000000000000023 /* ProposalsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000123 /* ProposalsListView.swift */; };
+		E10000000000000000000024 /* ProposalsListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000124 /* ProposalsListViewModel.swift */; };
+		E10000000000000000000025 /* ProposalDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000125 /* ProposalDetailView.swift */; };
+		E10000000000000000000026 /* ProposalDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000126 /* ProposalDetailViewModel.swift */; };
+		E10000000000000000000027 /* VoteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000127 /* VoteSheet.swift */; };
+		E10000000000000000000028 /* ProposalRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000128 /* ProposalRowView.swift */; };
+		E10000000000000000000029 /* ProposalStatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000129 /* ProposalStatusBadge.swift */; };
+		E10000000000000000000030 /* VotingIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000130 /* VotingIndicator.swift */; };
+		E10000000000000000000031 /* MembersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000131 /* MembersListView.swift */; };
+		E10000000000000000000032 /* MembersListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000132 /* MembersListViewModel.swift */; };
+		E10000000000000000000033 /* MemberRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000133 /* MemberRowView.swift */; };
+		E10000000000000000000034 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000134 /* LoadingView.swift */; };
+		E10000000000000000000035 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000135 /* ErrorView.swift */; };
+		E10000000000000000000036 /* TokenIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000136 /* TokenIcon.swift */; };
+		E10000000000000000000037 /* AddressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000137 /* AddressView.swift */; };
+		E10000000000000000000038 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000138 /* Assets.xcassets */; };
+		E10000000000000000000039 /* NearConnectBridge.html in Resources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000139 /* NearConnectBridge.html */; };
+		E10000000000000000000040 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000140 /* HomeView.swift */; };
+		E10000000000000000000041 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000141 /* HomeViewModel.swift */; };
+		E10000000000000000000042 /* TreasurySearchBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000142 /* TreasurySearchBar.swift */; };
+		E10000000000000000000043 /* ConnectWalletPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000143 /* ConnectWalletPrompt.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		E10000000000000000000100 /* NearTreasury.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NearTreasury.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E10000000000000000000101 /* NearTreasuryApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearTreasuryApp.swift; sourceTree = "<group>"; };
+		E10000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E10000000000000000000103 /* Treasury.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Treasury.swift; sourceTree = "<group>"; };
+		E10000000000000000000104 /* Asset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Asset.swift; sourceTree = "<group>"; };
+		E10000000000000000000105 /* Proposal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Proposal.swift; sourceTree = "<group>"; };
+		E10000000000000000000106 /* Member.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Member.swift; sourceTree = "<group>"; };
+		E10000000000000000000107 /* Policy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Policy.swift; sourceTree = "<group>"; };
+		E10000000000000000000108 /* Activity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Activity.swift; sourceTree = "<group>"; };
+		E10000000000000000000109 /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
+		E10000000000000000000110 /* TreasuryAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreasuryAPIClient.swift; sourceTree = "<group>"; };
+		E10000000000000000000111 /* WalletManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletManager.swift; sourceTree = "<group>"; };
+		E10000000000000000000112 /* NearConnectWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearConnectWebView.swift; sourceTree = "<group>"; };
+		E10000000000000000000113 /* TransactionBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionBuilder.swift; sourceTree = "<group>"; };
+		E10000000000000000000114 /* WalletConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletConnectionView.swift; sourceTree = "<group>"; };
+		E10000000000000000000115 /* WalletConnectionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletConnectionViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000116 /* TreasuryListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreasuryListView.swift; sourceTree = "<group>"; };
+		E10000000000000000000117 /* TreasuryListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreasuryListViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000118 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		E10000000000000000000119 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000120 /* AssetsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetsSection.swift; sourceTree = "<group>"; };
+		E10000000000000000000121 /* RecentActivitySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentActivitySection.swift; sourceTree = "<group>"; };
+		E10000000000000000000122 /* PendingRequestsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingRequestsSection.swift; sourceTree = "<group>"; };
+		E10000000000000000000123 /* ProposalsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalsListView.swift; sourceTree = "<group>"; };
+		E10000000000000000000124 /* ProposalsListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalsListViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000125 /* ProposalDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalDetailView.swift; sourceTree = "<group>"; };
+		E10000000000000000000126 /* ProposalDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalDetailViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000127 /* VoteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoteSheet.swift; sourceTree = "<group>"; };
+		E10000000000000000000128 /* ProposalRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalRowView.swift; sourceTree = "<group>"; };
+		E10000000000000000000129 /* ProposalStatusBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProposalStatusBadge.swift; sourceTree = "<group>"; };
+		E10000000000000000000130 /* VotingIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VotingIndicator.swift; sourceTree = "<group>"; };
+		E10000000000000000000131 /* MembersListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembersListView.swift; sourceTree = "<group>"; };
+		E10000000000000000000132 /* MembersListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MembersListViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000133 /* MemberRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberRowView.swift; sourceTree = "<group>"; };
+		E10000000000000000000134 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		E10000000000000000000135 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
+		E10000000000000000000136 /* TokenIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenIcon.swift; sourceTree = "<group>"; };
+		E10000000000000000000137 /* AddressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressView.swift; sourceTree = "<group>"; };
+		E10000000000000000000138 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E10000000000000000000139 /* NearConnectBridge.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = NearConnectBridge.html; sourceTree = "<group>"; };
+		E10000000000000000000140 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		E10000000000000000000141 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		E10000000000000000000142 /* TreasurySearchBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TreasurySearchBar.swift; sourceTree = "<group>"; };
+		E10000000000000000000143 /* ConnectWalletPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectWalletPrompt.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E10000000000000000000200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E10000000000000000000300 = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000301 /* NearTreasury */,
+				E10000000000000000000302 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E10000000000000000000301 /* NearTreasury */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000303 /* App */,
+				E10000000000000000000304 /* Core */,
+				E10000000000000000000305 /* Features */,
+				E10000000000000000000306 /* Shared */,
+				E10000000000000000000307 /* Resources */,
+			);
+			path = NearTreasury;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000302 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000100 /* NearTreasury.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000303 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000101 /* NearTreasuryApp.swift */,
+				E10000000000000000000102 /* ContentView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000304 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000308 /* Models */,
+				E10000000000000000000309 /* Network */,
+				E10000000000000000000310 /* Wallet */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000305 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000318 /* Home */,
+				E10000000000000000000311 /* Auth */,
+				E10000000000000000000312 /* TreasuryList */,
+				E10000000000000000000313 /* Dashboard */,
+				E10000000000000000000314 /* Proposals */,
+				E10000000000000000000315 /* Members */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000306 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000316 /* Views */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000307 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000138 /* Assets.xcassets */,
+				E10000000000000000000139 /* NearConnectBridge.html */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000308 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000103 /* Treasury.swift */,
+				E10000000000000000000104 /* Asset.swift */,
+				E10000000000000000000105 /* Proposal.swift */,
+				E10000000000000000000106 /* Member.swift */,
+				E10000000000000000000107 /* Policy.swift */,
+				E10000000000000000000108 /* Activity.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000309 /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000109 /* Endpoints.swift */,
+				E10000000000000000000110 /* TreasuryAPIClient.swift */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000310 /* Wallet */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000111 /* WalletManager.swift */,
+				E10000000000000000000112 /* NearConnectWebView.swift */,
+				E10000000000000000000113 /* TransactionBuilder.swift */,
+			);
+			path = Wallet;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000311 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000114 /* WalletConnectionView.swift */,
+				E10000000000000000000115 /* WalletConnectionViewModel.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000312 /* TreasuryList */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000116 /* TreasuryListView.swift */,
+				E10000000000000000000117 /* TreasuryListViewModel.swift */,
+			);
+			path = TreasuryList;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000313 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000118 /* DashboardView.swift */,
+				E10000000000000000000119 /* DashboardViewModel.swift */,
+				E10000000000000000000120 /* AssetsSection.swift */,
+				E10000000000000000000121 /* RecentActivitySection.swift */,
+				E10000000000000000000122 /* PendingRequestsSection.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000314 /* Proposals */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000123 /* ProposalsListView.swift */,
+				E10000000000000000000124 /* ProposalsListViewModel.swift */,
+				E10000000000000000000125 /* ProposalDetailView.swift */,
+				E10000000000000000000126 /* ProposalDetailViewModel.swift */,
+				E10000000000000000000127 /* VoteSheet.swift */,
+				E10000000000000000000317 /* Components */,
+			);
+			path = Proposals;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000315 /* Members */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000131 /* MembersListView.swift */,
+				E10000000000000000000132 /* MembersListViewModel.swift */,
+				E10000000000000000000133 /* MemberRowView.swift */,
+			);
+			path = Members;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000316 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000134 /* LoadingView.swift */,
+				E10000000000000000000135 /* ErrorView.swift */,
+				E10000000000000000000136 /* TokenIcon.swift */,
+				E10000000000000000000137 /* AddressView.swift */,
+				E10000000000000000000143 /* ConnectWalletPrompt.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000318 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000140 /* HomeView.swift */,
+				E10000000000000000000141 /* HomeViewModel.swift */,
+				E10000000000000000000142 /* TreasurySearchBar.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000317 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000128 /* ProposalRowView.swift */,
+				E10000000000000000000129 /* ProposalStatusBadge.swift */,
+				E10000000000000000000130 /* VotingIndicator.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		E10000000000000000000400 /* NearTreasury */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E10000000000000000000600 /* Build configuration list for PBXNativeTarget "NearTreasury" */;
+			buildPhases = (
+				E10000000000000000000401 /* Sources */,
+				E10000000000000000000200 /* Frameworks */,
+				E10000000000000000000402 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NearTreasury;
+			productName = NearTreasury;
+			productReference = E10000000000000000000100 /* NearTreasury.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E10000000000000000000500 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					E10000000000000000000400 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = E10000000000000000000501 /* Build configuration list for PBXProject "NearTreasury" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E10000000000000000000300;
+			productRefGroup = E10000000000000000000302 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E10000000000000000000400 /* NearTreasury */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E10000000000000000000402 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E10000000000000000000038 /* Assets.xcassets in Resources */,
+				E10000000000000000000039 /* NearConnectBridge.html in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E10000000000000000000401 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E10000000000000000000001 /* NearTreasuryApp.swift in Sources */,
+				E10000000000000000000002 /* ContentView.swift in Sources */,
+				E10000000000000000000003 /* Treasury.swift in Sources */,
+				E10000000000000000000004 /* Asset.swift in Sources */,
+				E10000000000000000000005 /* Proposal.swift in Sources */,
+				E10000000000000000000006 /* Member.swift in Sources */,
+				E10000000000000000000007 /* Policy.swift in Sources */,
+				E10000000000000000000008 /* Activity.swift in Sources */,
+				E10000000000000000000009 /* Endpoints.swift in Sources */,
+				E10000000000000000000010 /* TreasuryAPIClient.swift in Sources */,
+				E10000000000000000000011 /* WalletManager.swift in Sources */,
+				E10000000000000000000012 /* NearConnectWebView.swift in Sources */,
+				E10000000000000000000013 /* TransactionBuilder.swift in Sources */,
+				E10000000000000000000014 /* WalletConnectionView.swift in Sources */,
+				E10000000000000000000015 /* WalletConnectionViewModel.swift in Sources */,
+				E10000000000000000000016 /* TreasuryListView.swift in Sources */,
+				E10000000000000000000017 /* TreasuryListViewModel.swift in Sources */,
+				E10000000000000000000018 /* DashboardView.swift in Sources */,
+				E10000000000000000000019 /* DashboardViewModel.swift in Sources */,
+				E10000000000000000000020 /* AssetsSection.swift in Sources */,
+				E10000000000000000000021 /* RecentActivitySection.swift in Sources */,
+				E10000000000000000000022 /* PendingRequestsSection.swift in Sources */,
+				E10000000000000000000023 /* ProposalsListView.swift in Sources */,
+				E10000000000000000000024 /* ProposalsListViewModel.swift in Sources */,
+				E10000000000000000000025 /* ProposalDetailView.swift in Sources */,
+				E10000000000000000000026 /* ProposalDetailViewModel.swift in Sources */,
+				E10000000000000000000027 /* VoteSheet.swift in Sources */,
+				E10000000000000000000028 /* ProposalRowView.swift in Sources */,
+				E10000000000000000000029 /* ProposalStatusBadge.swift in Sources */,
+				E10000000000000000000030 /* VotingIndicator.swift in Sources */,
+				E10000000000000000000031 /* MembersListView.swift in Sources */,
+				E10000000000000000000032 /* MembersListViewModel.swift in Sources */,
+				E10000000000000000000033 /* MemberRowView.swift in Sources */,
+				E10000000000000000000034 /* LoadingView.swift in Sources */,
+				E10000000000000000000035 /* ErrorView.swift in Sources */,
+				E10000000000000000000036 /* TokenIcon.swift in Sources */,
+				E10000000000000000000037 /* AddressView.swift in Sources */,
+				E10000000000000000000040 /* HomeView.swift in Sources */,
+				E10000000000000000000041 /* HomeViewModel.swift in Sources */,
+				E10000000000000000000042 /* TreasurySearchBar.swift in Sources */,
+				E10000000000000000000043 /* ConnectWalletPrompt.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		E10000000000000000000601 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E10000000000000000000602 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E10000000000000000000603 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q49B7K733X;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neartreasury.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E10000000000000000000604 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q49B7K733X;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.neartreasury.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		E10000000000000000000501 /* Build configuration list for PBXProject "NearTreasury" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E10000000000000000000601 /* Debug */,
+				E10000000000000000000602 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E10000000000000000000600 /* Build configuration list for PBXNativeTarget "NearTreasury" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E10000000000000000000603 /* Debug */,
+				E10000000000000000000604 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E10000000000000000000500 /* Project object */;
+}
