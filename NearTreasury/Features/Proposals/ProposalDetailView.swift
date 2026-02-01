@@ -230,7 +230,9 @@ struct ProposalDetailView: View {
 
                 case .functionCall(let functionCall):
                     detailRow(label: "Contract", value: functionCall.receiverId)
-                    detailRow(label: "Method", value: functionCall.methodName)
+                    if let methodName = functionCall.methodName {
+                        detailRow(label: "Method", value: methodName)
+                    }
 
                 default:
                     EmptyView()

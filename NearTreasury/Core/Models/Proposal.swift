@@ -227,13 +227,34 @@ struct TransferKind: Codable, Hashable {
 
 struct FunctionCallKind: Codable, Hashable {
     let receiverId: String
+    let actions: [FunctionCallAction]
+
+    enum CodingKeys: String, CodingKey {
+        case receiverId = "receiver_id"
+        case actions
+    }
+
+    // Convenience accessors for the first action
+    var methodName: String? {
+        actions.first?.methodName
+    }
+
+    var args: String? {
+        actions.first?.args
+    }
+
+    var deposit: String? {
+        actions.first?.deposit
+    }
+}
+
+struct FunctionCallAction: Codable, Hashable {
     let methodName: String
     let args: String
     let deposit: String
     let gas: String?
 
     enum CodingKeys: String, CodingKey {
-        case receiverId = "receiver_id"
         case methodName = "method_name"
         case args
         case deposit
