@@ -1,17 +1,25 @@
-//
-//  TrezuApp.swift
-//  Trezu
-//
-//  Created by Vlad F on 2/28/26.
-//
-
 import SwiftUI
+import NEARConnect
 
 @main
 struct TrezuApp: App {
+    @StateObject private var walletManager = NEARWalletManager()
+    @State private var authService = AuthService()
+    @State private var treasuryService = TreasuryService()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(authService)
+                .environment(treasuryService)
+                .environmentObject(walletManager)
+                .fullScreenCover(isPresented: $walletManager.showWalletUI) {
+                    WalletBridgeSheet()
+                        .environmentObject(walletManager)
+                }
+                .task {
+                    await authService.checkSession()
+                }
         }
     }
 }

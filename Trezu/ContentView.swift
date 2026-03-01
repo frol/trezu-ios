@@ -1,24 +1,45 @@
-//
-//  ContentView.swift
-//  Trezu
-//
-//  Created by Vlad F on 2/28/26.
-//
-
 import SwiftUI
+import NEARConnect
 
-struct ContentView: View {
+// MARK: - Root View (Auth Router)
+
+struct RootView: View {
+    @Environment(AuthService.self) private var authService
+    @EnvironmentObject private var walletManager: NEARWalletManager
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if authService.isAuthenticated {
+                if authService.needsTermsAcceptance {
+                    AcceptTermsView()
+                } else {
+                    TreasuryRootView()
+                }
+            } else {
+                SignInView()
+            }
         }
-        .padding()
+        .animation(.default, value: authService.isAuthenticated)
     }
 }
 
-#Preview {
-    ContentView()
+// MARK: - Treasury Root (Selector + Main)
+
+struct TreasuryRootView: View {
+    @Environment(AuthService.self) private var authService
+    @Environment(TreasuryService.self) private var treasuryService
+
+    var body: some View {
+        Group {
+            if treasuryService.selectedTreasury != nil {
+                MainTabView()
+            } else {
+                TreasuryListView()
+            }
+        }
+        .task {
+            treasuryService.accountId = authService.currentUser?.accountId
+            await treasuryService.loadTreasuries()
+        }
+    }
 }

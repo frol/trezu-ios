@@ -1,0 +1,15 @@
+{
+  "originHash" : "09b7c7e3769aae40390f44fd57410d4715004bee76a00752ca10a64d86a58dd0",
+  "pins" : [
+    {
+      "identity" : "near-connect-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/frol/near-connect-ios",
+      "state" : {
+        "branch" : "main",
+        "revision" : "f20a01581b46d0260a71d10d461e03b7cd41150b"
+      }
+    }
+  ],
+  "version" : 3
+}
