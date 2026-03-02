@@ -115,6 +115,16 @@ struct Proposal: Codable, Identifiable {
         guard let voteStr = votes?[accountId] else { return nil }
         return Vote(rawValue: voteStr)
     }
+
+    /// Number of approval votes cast.
+    var approvalCount: Int {
+        votes?.values.filter { $0 == Vote.approve.rawValue }.count ?? 0
+    }
+
+    /// Number of rejection votes cast.
+    var rejectionCount: Int {
+        votes?.values.filter { $0 == Vote.reject.rawValue }.count ?? 0
+    }
 }
 
 // MARK: - Exchange Data
@@ -305,6 +315,26 @@ enum ProposalKind: Codable {
         case .vote: return "Vote"
         case .factoryInfoUpdate: return "Factory Update"
         case .unknown(let s): return s
+        }
+    }
+
+    /// The permission kind string used in policy role permissions (e.g. "transfer", "call", "policy").
+    var permissionKind: String {
+        switch self {
+        case .transfer: return "transfer"
+        case .functionCall: return "call"
+        case .addMemberToRole: return "add_member_to_role"
+        case .removeMemberFromRole: return "remove_member_from_role"
+        case .changePolicy: return "policy"
+        case .changeConfig: return "config"
+        case .upgradeSelf: return "upgrade_self"
+        case .upgradeRemote: return "upgrade_remote"
+        case .setStakingContract: return "set_staking_contract"
+        case .addBounty: return "add_bounty"
+        case .bountyDone: return "bounty_done"
+        case .vote: return "vote"
+        case .factoryInfoUpdate: return "factory_info_update"
+        case .unknown: return "unknown"
         }
     }
 

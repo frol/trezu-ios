@@ -5,6 +5,7 @@ struct ProposalDetailView: View {
     let proposalId: Int
 
     @Environment(TreasuryService.self) private var treasuryService
+    @Environment(AuthService.self) private var authService
     @EnvironmentObject private var walletManager: NEARWalletManager
 
     @State private var proposal: Proposal?
@@ -14,6 +15,11 @@ struct ProposalDetailView: View {
     @State private var pendingVote: Vote?
     @State private var isVoting = false
     @State private var voteError: String?
+    @State private var voteSuccess: Vote?
+
+    private var currentAccountId: String {
+        authService.currentUser?.accountId ?? ""
+    }
 
     var body: some View {
         ScrollView {
@@ -23,19 +29,19 @@ struct ProposalDetailView: View {
                     .padding(.top, 64)
             } else if let proposal {
                 VStack(alignment: .leading, spacing: 20) {
+                    // Success banner
+                    if let vote = voteSuccess {
+                        voteSuccessBanner(vote)
+                    }
+
                     // Header
                     proposalHeader(proposal)
 
                     // Details based on kind
                     proposalKindDetails(proposal)
 
-                    // Votes section
-                    votesSection(proposal)
-
-                    // Vote actions (if pending)
-                    if proposal.status.isPending {
-                        voteActions(proposal)
-                    }
+                    // Voting progress, voters, and actions
+                    votingProgressSection(proposal)
                 }
                 .padding()
             } else if let error {
@@ -234,55 +240,127 @@ struct ProposalDetailView: View {
         }
     }
 
-    // MARK: - Votes Section
+    // MARK: - Voting Progress Section
 
     @ViewBuilder
-    private func votesSection(_ proposal: Proposal) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Votes")
+    private func votingProgressSection(_ proposal: Proposal) -> some View {
+        let approvals = proposal.approvalCount
+        let rejections = proposal.rejectionCount
+        let hasUserVoted = proposal.userVote(accountId: currentAccountId) != nil
+
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Voting")
                 .font(.headline)
 
-            if let votes = proposal.votes, !votes.isEmpty {
-                ForEach(Array(votes.keys.sorted()), id: \.self) { accountId in
-                    if let voteStr = votes[accountId] {
-                        HStack {
-                            Text(accountId)
-                                .font(.subheadline)
-                                .lineLimit(1)
+            // Only show threshold progress bar for pending proposals
+            // (the current policy accurately reflects the required votes for active proposals,
+            // but not for historical ones where membership may have changed)
+            if proposal.status.isPending {
+                let policy = treasuryService.policy
+                let required = policy?.requiredVotes(for: proposal.kind, accountId: currentAccountId) ?? 1
 
-                            Spacer()
-
-                            let vote = Vote(rawValue: voteStr)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("\(approvals) of \(required) approvals")
+                            .font(.subheadline.weight(.medium))
+                        Spacer()
+                        if rejections > 0 {
                             HStack(spacing: 4) {
-                                Image(systemName: voteIcon(for: vote))
-                                Text(voteStr)
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.red)
+                                Text("\(rejections) rejected")
                             }
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(voteColor(for: vote))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         }
-                        .padding(.vertical, 2)
                     }
+
+                    // Progress bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color(.tertiarySystemFill))
+                            Capsule()
+                                .fill(approvals >= required ? Color.green : Color.accentColor)
+                                .frame(width: geo.size.width * min(1.0, CGFloat(approvals) / CGFloat(max(required, 1))))
+                        }
+                    }
+                    .frame(height: 8)
                 }
             } else {
+                // For completed proposals, show a summary without threshold
+                HStack(spacing: 12) {
+                    if approvals > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                            Text("\(approvals) approved")
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                    if rejections > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.red)
+                            Text("\(rejections) rejected")
+                        }
+                        .font(.subheadline.weight(.medium))
+                    }
+                    if approvals == 0 && rejections == 0 {
+                        Text("No votes were cast")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            // Individual voters
+            if let votes = proposal.votes, !votes.isEmpty {
+                Divider()
+
+                VStack(spacing: 8) {
+                    ForEach(Array(votes.keys.sorted()), id: \.self) { accountId in
+                        if let voteStr = votes[accountId] {
+                            let vote = Vote(rawValue: voteStr)
+                            HStack(spacing: 8) {
+                                Image(systemName: voteIcon(for: vote))
+                                    .font(.body)
+                                    .foregroundStyle(voteColor(for: vote))
+                                    .frame(width: 24)
+
+                                Text(accountId)
+                                    .font(.subheadline)
+                                    .lineLimit(1)
+
+                                Spacer()
+
+                                Text(voteStr)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(voteColor(for: vote).opacity(0.12), in: Capsule())
+                                    .foregroundStyle(voteColor(for: vote))
+                            }
+                        }
+                    }
+                }
+            } else if proposal.status.isPending {
                 Text("No votes yet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
 
-            // Vote counts summary
-            if let voteCounts = proposal.voteCounts, !voteCounts.isEmpty {
+            // Vote actions (if pending and user hasn't voted)
+            if proposal.status.isPending && !hasUserVoted && voteSuccess == nil {
                 Divider()
-                ForEach(Array(voteCounts.keys.sorted()), id: \.self) { role in
-                    if let counts = voteCounts[role], counts.count >= 3 {
-                        HStack {
-                            Text(role)
-                                .font(.caption.weight(.medium))
-                            Spacer()
-                            Text("\(counts[0]) approve, \(counts[1]) reject, \(counts[2]) remove")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
+                voteActions(proposal)
+            } else if proposal.status.isPending && hasUserVoted && voteSuccess == nil {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundStyle(.secondary)
+                    Text("You have already voted on this request.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -338,8 +416,30 @@ struct ProposalDetailView: View {
                 ProgressView("Submitting vote...")
             }
         }
+    }
+
+    // MARK: - Vote Success Banner
+
+    @ViewBuilder
+    private func voteSuccessBanner(_ vote: Vote) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: vote == .approve ? "checkmark.seal.fill" : "xmark.seal.fill")
+                .font(.title2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Vote Submitted")
+                    .font(.headline)
+                Text("You voted to \(vote.rawValue.lowercased()) this request.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(
+            (vote == .approve ? Color.green : Color.red).opacity(0.12),
+            in: RoundedRectangle(cornerRadius: 16)
+        )
+        .foregroundStyle(vote == .approve ? .green : .red)
     }
 
     // MARK: - Helpers
@@ -379,6 +479,7 @@ struct ProposalDetailView: View {
         guard let proposal else { return }
         isVoting = true
         voteError = nil
+        voteSuccess = nil
         do {
             try await treasuryService.voteOnProposal(
                 proposalId: proposalId,
@@ -386,6 +487,7 @@ struct ProposalDetailView: View {
                 rawKind: proposal.rawKind,
                 walletManager: walletManager
             )
+            withAnimation { voteSuccess = vote }
             await loadProposal()
         } catch {
             voteError = error.localizedDescription

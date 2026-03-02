@@ -196,6 +196,112 @@ enum ThresholdValue: Codable {
     }
 }
 
+// MARK: - Voting Threshold
+
+extension Policy {
+    /// Computes the required number of approval votes for a proposal of the given kind.
+    /// Replicates the frontend's `getApproversAndThreshold` logic.
+    func requiredVotes(for proposalKind: ProposalKind, accountId: String) -> Int {
+        let kind = proposalKind.permissionKind
+        let approvePermissions: Set<String> = [
+            "*:*", "\(kind):*",
+            "\(kind):VoteApprove", "\(kind):VoteReject",
+            "*:VoteApprove", "*:VoteReject"
+        ]
+
+        // Find roles that have voting permission for this kind
+        let rolesWithPermission = roles.filter { role in
+            guard let permissions = role.permissions else { return false }
+            return permissions.contains { approvePermissions.contains($0) }
+        }
+
+        var approverAccounts: Set<String> = []
+        var ratios: [Int] = []
+        var absoluteVotes: Int?
+        var everyoneHasAccess = false
+
+        for role in rolesWithPermission {
+            // Collect group members
+            if case .group(let accounts) = role.kind {
+                approverAccounts.formUnion(accounts)
+            }
+            if case .everyone = role.kind {
+                everyoneHasAccess = true
+            }
+
+            // Determine vote policy: role-specific or default
+            let votePolicy: VotePolicy
+            if let rolePolicies = role.votePolicy,
+               let specific = rolePolicies[kind],
+               specific.threshold != nil {
+                votePolicy = specific
+            } else {
+                votePolicy = defaultVotePolicy
+            }
+
+            if votePolicy.weightKind == "RoleWeight" {
+                if let threshold = votePolicy.threshold {
+                    switch threshold {
+                    case .ratio(let num, let den):
+                        ratios.append(contentsOf: [num, den])
+                    case .absolute(let n):
+                        absoluteVotes = n
+                    }
+                }
+            }
+        }
+
+        if everyoneHasAccess && !accountId.isEmpty {
+            approverAccounts.insert(accountId)
+        }
+
+        if let absolute = absoluteVotes {
+            return absolute
+        }
+
+        // Compute from ratio: floor(numerator/denominator * memberCount) + 1
+        guard !ratios.isEmpty else { return 1 }
+        var numerator = 0
+        var denominator = 0
+        for (i, val) in ratios.enumerated() {
+            if i % 2 == 0 { numerator += val }
+            else { denominator += val }
+        }
+        guard denominator > 0 else { return 1 }
+        return Int(Double(numerator) / Double(denominator) * Double(approverAccounts.count)) + 1
+    }
+
+    /// Returns the list of accounts that can vote on proposals of the given kind.
+    func approverAccounts(for proposalKind: ProposalKind, accountId: String) -> [String] {
+        let kind = proposalKind.permissionKind
+        let approvePermissions: Set<String> = [
+            "*:*", "\(kind):*",
+            "\(kind):VoteApprove", "\(kind):VoteReject",
+            "*:VoteApprove", "*:VoteReject"
+        ]
+
+        let rolesWithPermission = roles.filter { role in
+            guard let permissions = role.permissions else { return false }
+            return permissions.contains { approvePermissions.contains($0) }
+        }
+
+        var accounts: Set<String> = []
+        var everyoneHasAccess = false
+        for role in rolesWithPermission {
+            if case .group(let groupAccounts) = role.kind {
+                accounts.formUnion(groupAccounts)
+            }
+            if case .everyone = role.kind {
+                everyoneHasAccess = true
+            }
+        }
+        if everyoneHasAccess && !accountId.isEmpty {
+            accounts.insert(accountId)
+        }
+        return Array(accounts).sorted()
+    }
+}
+
 // MARK: - Config
 
 struct DaoConfig: Codable {
