@@ -111,7 +111,6 @@ struct ProposalsListView: View {
             .sheet(item: $selectedProposal) { proposal in
                 ProposalDetailView(proposalId: proposal.id)
             }
-            .searchable(text: $searchText, isPresented: $showSearch, prompt: "Search requests")
             .task(id: loadTrigger) {
                 await reload()
             }
