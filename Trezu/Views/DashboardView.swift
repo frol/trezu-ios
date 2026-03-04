@@ -25,9 +25,9 @@ struct DashboardView: View {
                     }
 
                     // Recent Activity
-                    if !treasuryService.recentActivity.isEmpty {
-                        RecentActivityCard(activity: treasuryService.recentActivity)
-                    }
+//                    if !treasuryService.recentActivity.isEmpty {
+//                        RecentActivityCard(activity: treasuryService.recentActivity)
+//                    }
                 }
                 .padding()
             }

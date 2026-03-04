@@ -69,10 +69,6 @@ struct SettingsView: View {
 
                 // Account section
                 Section("Account") {
-                    if let account = walletManager.currentAccount {
-                        LabeledContent("Wallet", value: account.displayName)
-                        LabeledContent("Wallet Type", value: account.walletId)
-                    }
                     if let user = authService.currentUser {
                         LabeledContent("Account", value: user.accountId)
                     }

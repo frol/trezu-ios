@@ -94,18 +94,18 @@ struct ProposalsListView: View {
             .refreshable {
                 await reload()
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showCreateRequest = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showCreateRequest) {
-                CreateRequestView()
-            }
+//            .toolbar {
+//                ToolbarItem(placement: .topBarTrailing) {
+//                    Button {
+//                        showCreateRequest = true
+//                    } label: {
+//                        Image(systemName: "plus")
+//                    }
+//                }
+//            }
+//            .sheet(isPresented: $showCreateRequest) {
+//                CreateRequestView()
+//            }
             .task(id: loadTrigger) {
                 await reload()
             }

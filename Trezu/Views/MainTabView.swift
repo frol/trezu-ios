@@ -16,9 +16,9 @@ struct MainTabView: View {
                 ProposalsListView()
             }
 
-            Tab("Members", systemImage: "person.3.fill") {
-                MembersView()
-            }
+//            Tab("Members", systemImage: "person.3.fill") {
+//                MembersView()
+//            }
 
             Tab("Settings", systemImage: "gearshape.fill") {
                 SettingsView()
