@@ -6,6 +6,7 @@ struct ProposalDetailView: View {
 
     @Environment(TreasuryService.self) private var treasuryService
     @Environment(AuthService.self) private var authService
+    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var walletManager: NEARWalletManager
 
     @State private var proposal: Proposal?
@@ -22,40 +23,72 @@ struct ProposalDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            if isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 64)
-            } else if let proposal {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Success banner
-                    if let vote = voteSuccess {
-                        voteSuccessBanner(vote)
+        NavigationStack {
+            ScrollView {
+                if isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 64)
+                } else if let proposal {
+                    VStack(spacing: 0) {
+                        // Success banner
+                        if let vote = voteSuccess {
+                            voteSuccessBanner(vote)
+                                .padding(.horizontal)
+                                .padding(.bottom, 12)
+                        }
+
+                        // Hero section: icon + amount + date
+                        heroSection(proposal)
+
+                        // Status badge
+                        statusRow(proposal)
+                            .padding(.top, 16)
+                            .padding(.horizontal)
+
+                        // Info rows
+                        VStack(spacing: 0) {
+                            infoRows(proposal)
+                            votingInfoRow(proposal)
+                            executedDateRow(proposal)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 16)
+
+                        // Vote actions for pending proposals
+                        if proposal.status.isPending {
+                            voteActionsSection(proposal)
+                                .padding(.horizontal)
+                                .padding(.top, 16)
+                        }
+
+                        // View Transaction button
+                        viewTransactionButton(proposal)
+                            .padding(.horizontal)
+                            .padding(.top, 24)
+                            .padding(.bottom, 32)
                     }
-
-                    // Header
-                    proposalHeader(proposal)
-
-                    // Details based on kind
-                    proposalKindDetails(proposal)
-
-                    // Voting progress, voters, and actions
-                    votingProgressSection(proposal)
+                } else if let error {
+                    ContentUnavailableView(
+                        "Error",
+                        systemImage: "exclamationmark.triangle",
+                        description: Text(error)
+                    )
                 }
-                .padding()
-            } else if let error {
-                ContentUnavailableView(
-                    "Error",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(error)
-                )
+            }
+            .navigationTitle(detailTitle)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("", systemImage: "xmark.circle.fill") {
+                        dismiss()
+                    }
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                }
             }
         }
-        .navigationTitle("Request #\(proposalId)")
-        .navigationBarTitleDisplayMode(.inline)
         .task { await loadProposal() }
-        .refreshable { await loadProposal() }
         .alert("Confirm Vote", isPresented: $showVoteConfirmation, presenting: pendingVote) { vote in
             Button("Cancel", role: .cancel) { }
             Button(vote.rawValue, role: vote == .reject ? .destructive : nil) {
@@ -66,354 +99,305 @@ struct ProposalDetailView: View {
         }
     }
 
-    // MARK: - Header
-
-    @ViewBuilder
-    private func proposalHeader(_ proposal: Proposal) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                ProposalStatusBadge(status: proposal.status)
-                Spacer()
-                Text("#\(proposal.id)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(proposal.decodedDescription.title)
-                .font(.title3.bold())
-
-            if let notes = proposal.decodedDescription.notes {
-                Text(notes)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let urlString = proposal.decodedDescription.url,
-               let url = URL(string: urlString) {
-                Link(destination: url) {
-                    Label(urlString, systemImage: "link")
-                        .font(.caption)
-                        .lineLimit(1)
-                }
-            }
-
-            HStack(spacing: 16) {
-                Label(proposal.proposer, systemImage: "person.circle")
-                    .font(.caption)
-                    .lineLimit(1)
-
-                if let date = proposal.submissionDate {
-                    Label {
-                        Text(date, style: .relative)
-                    } icon: {
-                        Image(systemName: "clock")
-                    }
-                    .font(.caption)
-                }
-            }
-            .foregroundStyle(.secondary)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    private var detailTitle: String {
+        guard let proposal else { return "Request #\(proposalId)" }
+        let kindName = proposal.displayKind == "Transfer" ? "Payment Request" : proposal.displayKind
+        return "\(kindName) #\(proposal.id)"
     }
 
-    // MARK: - Kind Details
+    // MARK: - Hero Section
 
     @ViewBuilder
-    private func proposalKindDetails(_ proposal: Proposal) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(proposal.displayKind, systemImage: proposal.displayIcon)
-                .font(.headline)
-
-            if let exchange = proposal.exchangeData {
-                exchangeDetails(exchange)
-            } else {
-                switch proposal.kind {
-                case .transfer(let action):
-                    LabeledContent("Recipient", value: action.receiverId)
-                    LabeledContent("Amount") {
-                        if let tokenId = action.tokenId, !tokenId.isEmpty {
-                            Text("\(action.amount) (token: \(tokenId))")
-                        } else {
-                            Text("\(formatNEAR(action.amount)) NEAR")
-                        }
-                    }
-
-                case .addMemberToRole(let action):
-                    LabeledContent("Account", value: action.memberId)
-                    LabeledContent("Role", value: action.role)
-
-                case .removeMemberFromRole(let action):
-                    LabeledContent("Account", value: action.memberId)
-                    LabeledContent("Role", value: action.role)
-
-                case .functionCall(let action):
-                    LabeledContent("Contract", value: action.receiverId)
-                    ForEach(Array(action.actions.enumerated()), id: \.offset) { _, detail in
-                        LabeledContent("Method", value: detail.methodName)
-                    }
-
-                default:
-                    Text("Details not available for this proposal type.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    // MARK: - Exchange Details
-
-    @ViewBuilder
-    private func exchangeDetails(_ exchange: ExchangeData) -> some View {
-        // Swap summary
+    private func heroSection(_ proposal: Proposal) -> some View {
         VStack(spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Send")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            if proposal.isExchange, let exchange = proposal.exchangeData {
+                // Exchange hero
+                HStack(spacing: -8) {
+                    TokenIconView(icon: nil, symbol: exchange.tokenDisplayName(exchange.tokenIn))
+                        .frame(width: 44, height: 44)
+                    TokenIconView(icon: nil, symbol: exchange.tokenDisplayName(exchange.tokenOut))
+                        .frame(width: 44, height: 44)
+                }
+                .padding(.top, 16)
+
+                VStack(spacing: 2) {
                     HStack(spacing: 4) {
                         Text(exchange.amountIn)
-                            .font(.title3.weight(.semibold))
+                            .font(.system(size: 32, weight: .bold))
                         Text(exchange.tokenDisplayName(exchange.tokenIn))
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 32, weight: .bold))
                     }
-                }
-                Spacer()
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.tint)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Receive")
-                        .font(.caption)
+                    Image(systemName: "arrow.down")
+                        .font(.title3)
                         .foregroundStyle(.secondary)
                     HStack(spacing: 4) {
                         Text(exchange.amountOut)
-                            .font(.title3.weight(.semibold))
+                            .font(.system(size: 32, weight: .bold))
                         Text(exchange.tokenDisplayName(exchange.tokenOut))
-                            .font(.title3)
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 32, weight: .bold))
                     }
                 }
-            }
-        }
-        .padding()
-        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+            } else if case .transfer(let action) = proposal.kind {
+                // Transfer hero
+                let symbol = transferTokenSymbol(action)
+                TokenIconView(icon: nil, symbol: symbol)
+                    .frame(width: 48, height: 48)
+                    .padding(.top, 16)
 
-        // Additional details
-        if let slippage = exchange.slippage {
-            LabeledContent("Slippage Limit", value: "\(slippage)%")
-        }
-
-        if let timeEstimate = exchange.timeEstimate {
-            LabeledContent("Estimated Time", value: timeEstimate)
-        }
-
-        if let deadline = exchange.quoteDeadline {
-            LabeledContent("Quote Deadline", value: deadline)
-        }
-
-        if let depositAddress = exchange.depositAddress {
-            LabeledContent("Deposit Address") {
-                Text(depositAddress)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-        }
-
-        if let notes = exchange.notes {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Notes")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(notes)
-                    .font(.subheadline)
-            }
-        }
-    }
-
-    // MARK: - Voting Progress Section
-
-    @ViewBuilder
-    private func votingProgressSection(_ proposal: Proposal) -> some View {
-        let approvals = proposal.approvalCount
-        let rejections = proposal.rejectionCount
-        let hasUserVoted = proposal.userVote(accountId: currentAccountId) != nil
-
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Voting")
-                .font(.headline)
-
-            // Only show threshold progress bar for pending proposals
-            // (the current policy accurately reflects the required votes for active proposals,
-            // but not for historical ones where membership may have changed)
-            if proposal.status.isPending {
-                let policy = treasuryService.policy
-                let required = policy?.requiredVotes(for: proposal.kind, accountId: currentAccountId) ?? 1
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("\(approvals) of \(required) approvals")
-                            .font(.subheadline.weight(.medium))
-                        Spacer()
-                        if rejections > 0 {
-                            HStack(spacing: 4) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.red)
-                                Text("\(rejections) rejected")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    // Progress bar
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color(.tertiarySystemFill))
-                            Capsule()
-                                .fill(approvals >= required ? Color.green : Color.accentColor)
-                                .frame(width: geo.size.width * min(1.0, CGFloat(approvals) / CGFloat(max(required, 1))))
-                        }
-                    }
-                    .frame(height: 8)
+                HStack(spacing: 6) {
+                    Text(transferFormattedAmount(action))
+                        .font(.system(size: 32, weight: .bold))
+                    Text(symbol)
+                        .font(.system(size: 32, weight: .bold))
                 }
             } else {
-                // For completed proposals, show a summary without threshold
-                HStack(spacing: 12) {
-                    if approvals > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text("\(approvals) approved")
-                        }
-                        .font(.subheadline.weight(.medium))
-                    }
-                    if rejections > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.red)
-                            Text("\(rejections) rejected")
-                        }
-                        .font(.subheadline.weight(.medium))
-                    }
-                    if approvals == 0 && rejections == 0 {
-                        Text("No votes were cast")
-                            .font(.subheadline)
+                // Generic hero
+                Image(systemName: proposal.displayIcon)
+                    .font(.system(size: 36))
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 16)
+
+                Text(proposal.decodedDescription.title)
+                    .font(.title2.bold())
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+
+            // Date
+            if let date = proposal.submissionDate {
+                Text(formattedDateUTC(date))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Status Row
+
+    @ViewBuilder
+    private func statusRow(_ proposal: Proposal) -> some View {
+        let color = statusColor(proposal.status)
+        HStack(spacing: 6) {
+            Image(systemName: statusIcon(proposal.status))
+            Text(proposal.status.displayName)
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(color)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    // MARK: - Info Rows
+
+    @ViewBuilder
+    private func infoRows(_ proposal: Proposal) -> some View {
+        // Recipient
+        if case .transfer(let action) = proposal.kind {
+            DetailRow(label: "Recipient") {
+                AccountDisplay(accountId: action.receiverId)
+            }
+
+            DashedDivider()
+        }
+
+        if case .functionCall(let action) = proposal.kind {
+            DetailRow(label: "Contract") {
+                AccountDisplay(accountId: action.receiverId)
+            }
+            if let first = action.actions.first {
+                DashedDivider()
+                DetailRow(label: "Method") {
+                    Text(first.methodName)
+                        .font(.subheadline)
+                }
+            }
+            DashedDivider()
+        }
+
+        if case .addMemberToRole(let action) = proposal.kind {
+            DetailRow(label: "Account") {
+                AccountDisplay(accountId: action.memberId)
+            }
+            DashedDivider()
+            DetailRow(label: "Role") {
+                Text(action.role)
+                    .font(.subheadline)
+            }
+            DashedDivider()
+        }
+
+        if case .removeMemberFromRole(let action) = proposal.kind {
+            DetailRow(label: "Account") {
+                AccountDisplay(accountId: action.memberId)
+            }
+            DashedDivider()
+            DetailRow(label: "Role") {
+                Text(action.role)
+                    .font(.subheadline)
+            }
+            DashedDivider()
+        }
+
+        // Exchange extra details
+        if let exchange = proposal.exchangeData {
+            if let slippage = exchange.slippage {
+                DetailRow(label: "Slippage") {
+                    Text("\(slippage)%").font(.subheadline)
+                }
+                DashedDivider()
+            }
+            if let depositAddress = exchange.depositAddress {
+                DetailRow(label: "Deposit Address") {
+                    Text(depositAddress)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                DashedDivider()
+            }
+        }
+
+        // Requester
+        DetailRow(label: "Requester") {
+            AccountDisplay(accountId: proposal.proposer)
+        }
+
+        DashedDivider()
+    }
+
+    // MARK: - Voting Info Row
+
+    @ViewBuilder
+    private func votingInfoRow(_ proposal: Proposal) -> some View {
+        let approvals = proposal.approvalCount
+        let policy = treasuryService.policy
+
+        DetailRow(label: "Voting") {
+            HStack(spacing: 8) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    if proposal.status.isPending, let policy {
+                        let required = policy.requiredVotes(for: proposal.kind, accountId: currentAccountId)
+                        Text("\(approvals)/\(required) approvals received")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("\(approvals) approvals received")
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
-            }
 
-            // Individual voters
-            if let votes = proposal.votes, !votes.isEmpty {
-                Divider()
-
-                VStack(spacing: 8) {
-                    ForEach(Array(votes.keys.sorted()), id: \.self) { accountId in
-                        if let voteStr = votes[accountId] {
-                            let vote = Vote(rawValue: voteStr)
-                            HStack(spacing: 8) {
-                                Image(systemName: voteIcon(for: vote))
-                                    .font(.body)
-                                    .foregroundStyle(voteColor(for: vote))
-                                    .frame(width: 24)
-
-                                Text(accountId)
-                                    .font(.subheadline)
-                                    .lineLimit(1)
-
-                                Spacer()
-
-                                Text(voteStr)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(voteColor(for: vote).opacity(0.12), in: Capsule())
-                                    .foregroundStyle(voteColor(for: vote))
-                            }
-                        }
-                    }
-                }
-            } else if proposal.status.isPending {
-                Text("No votes yet")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Vote actions (if pending and user hasn't voted)
-            if proposal.status.isPending && !hasUserVoted && voteSuccess == nil {
-                Divider()
-                voteActions(proposal)
-            } else if proposal.status.isPending && hasUserVoted && voteSuccess == nil {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.secondary)
-                    Text("You have already voted on this request.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                if let votes = proposal.votes, !votes.isEmpty {
+                    CompactVoterAvatars(votes: votes)
                 }
             }
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+
+        DashedDivider()
     }
 
-    // MARK: - Vote Actions
+    // MARK: - Executed Date Row
 
     @ViewBuilder
-    private func voteActions(_ proposal: Proposal) -> some View {
-        VStack(spacing: 12) {
-            if let voteError {
-                Text(voteError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+    private func executedDateRow(_ proposal: Proposal) -> some View {
+        if !proposal.status.isPending {
+            DetailRow(label: proposal.status.displayName) {
+                if let date = proposal.submissionDate {
+                    Text(formattedDateUTC(date))
+                        .font(.subheadline)
+                }
             }
+        }
+    }
 
-            HStack(spacing: 12) {
-                Button {
-                    pendingVote = .approve
-                    showVoteConfirmation = true
-                } label: {
+    // MARK: - Vote Actions Section
+
+    @ViewBuilder
+    private func voteActionsSection(_ proposal: Proposal) -> some View {
+        let hasUserVoted = proposal.userVote(accountId: currentAccountId) != nil
+
+        if hasUserVoted && voteSuccess == nil {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+                Text("You have already voted on this request.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+        } else if !hasUserVoted && voteSuccess == nil {
+            VStack(spacing: 12) {
+                if let voteError {
+                    Text(voteError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                HStack(spacing: 12) {
+                    Button {
+                        pendingVote = .reject
+                        showVoteConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "xmark")
+                                .font(.body.weight(.semibold))
+                            Text("Reject")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(.primary)
+                    }
+                    .disabled(isVoting)
+
+                    Button {
+                        pendingVote = .approve
+                        showVoteConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "checkmark")
+                                .font(.body.weight(.semibold))
+                            Text("Approve")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.primary, in: RoundedRectangle(cornerRadius: 12))
+                        .foregroundStyle(Color(.systemBackground))
+                    }
+                    .disabled(isVoting)
+                }
+
+                if isVoting {
+                    ProgressView("Submitting vote...")
+                }
+            }
+        }
+    }
+
+    // MARK: - View Transaction Button
+
+    @ViewBuilder
+    private func viewTransactionButton(_ proposal: Proposal) -> some View {
+        if let daoId = proposal.daoId ?? treasuryService.daoId {
+            let urlString = "https://nearblocks.io/txns?query=\(daoId)"
+            if let url = URL(string: urlString) {
+                Link(destination: url) {
                     HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                        Text("Approve")
+                        Text("View Transaction")
+                            .font(.body.weight(.semibold))
+                        Image(systemName: "arrow.up.right")
+                            .font(.body.weight(.semibold))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.green, in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.white)
+                    .padding(.vertical, 16)
+                    .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 14))
+                    .foregroundStyle(.primary)
                 }
-                .disabled(isVoting)
-
-                Button {
-                    pendingVote = .reject
-                    showVoteConfirmation = true
-                } label: {
-                    HStack {
-                        Image(systemName: "xmark.circle.fill")
-                        Text("Reject")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(.red, in: RoundedRectangle(cornerRadius: 12))
-                    .foregroundStyle(.white)
-                }
-                .disabled(isVoting)
-            }
-
-            if isVoting {
-                ProgressView("Submitting vote...")
             }
         }
     }
@@ -444,22 +428,53 @@ struct ProposalDetailView: View {
 
     // MARK: - Helpers
 
-    private func voteIcon(for vote: Vote?) -> String {
-        switch vote {
-        case .approve: return "checkmark.circle.fill"
-        case .reject: return "xmark.circle.fill"
-        case .remove: return "trash.circle.fill"
-        case nil: return "questionmark.circle"
+    private func statusColor(_ status: ProposalStatus) -> Color {
+        switch status {
+        case .approved: return .green
+        case .rejected: return .red
+        case .inProgress: return .orange
+        case .expired: return .gray
+        case .removed: return .gray
+        case .moved: return .blue
+        case .failed: return .red
         }
     }
 
-    private func voteColor(for vote: Vote?) -> Color {
-        switch vote {
-        case .approve: return .green
-        case .reject: return .red
-        case .remove: return .orange
-        case nil: return .secondary
+    private func statusIcon(_ status: ProposalStatus) -> String {
+        switch status {
+        case .approved: return "checkmark.circle.fill"
+        case .rejected: return "xmark.circle.fill"
+        case .inProgress: return "clock.fill"
+        case .expired: return "clock.badge.exclamationmark.fill"
+        case .removed: return "trash.circle.fill"
+        case .moved: return "arrow.right.circle.fill"
+        case .failed: return "exclamationmark.circle.fill"
         }
+    }
+
+    private func transferTokenSymbol(_ action: TransferAction) -> String {
+        if let tokenId = action.tokenId, !tokenId.isEmpty {
+            let known: [String: String] = [
+                "near": "NEAR", "wrap.near": "wNEAR",
+                "usdt.tether-token.near": "USDt",
+            ]
+            return known[tokenId.lowercased()] ?? tokenId
+        }
+        return "NEAR"
+    }
+
+    private func transferFormattedAmount(_ action: TransferAction) -> String {
+        if let tokenId = action.tokenId, !tokenId.isEmpty {
+            return action.amount
+        }
+        return formatNEAR(action.amount)
+    }
+
+    private func formattedDateUTC(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy h:mm a"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.string(from: date) + " UTC"
     }
 
     // MARK: - Data Loading
@@ -493,5 +508,70 @@ struct ProposalDetailView: View {
             voteError = error.localizedDescription
         }
         isVoting = false
+    }
+}
+
+// MARK: - Detail Row
+
+struct DetailRow<Content: View>: View {
+    let label: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Spacer()
+            content
+        }
+        .padding(.vertical, 12)
+    }
+}
+
+// MARK: - Dashed Divider
+
+struct DashedDivider: View {
+    var body: some View {
+        Line()
+            .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+            .frame(height: 1)
+            .foregroundStyle(Color(.separator).opacity(0.4))
+    }
+}
+
+private struct Line: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: rect.midY))
+        path.addLine(to: CGPoint(x: rect.width, y: rect.midY))
+        return path
+    }
+}
+
+// MARK: - Account Display
+
+struct AccountDisplay: View {
+    let accountId: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Avatar
+            Circle()
+                .fill(Color(.systemGray5))
+                .frame(width: 32, height: 32)
+                .overlay {
+                    Text(String(accountId.prefix(1)).uppercased())
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(accountId)
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
     }
 }
