@@ -252,7 +252,7 @@ final class APIClient {
 
     func getTokenMetadata(tokenId: String) async throws -> TokenMetadata {
         try await request(path: "token/metadata", queryItems: [
-            URLQueryItem(name: "token_id", value: tokenId)
+            URLQueryItem(name: "tokenId", value: tokenId)
         ])
     }
 

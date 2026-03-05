@@ -3,7 +3,11 @@ import Foundation
 // MARK: - TreasuryAsset
 
 struct TreasuryAsset: Codable, Identifiable {
-    var id: String { contractId ?? "near" }
+    var id: String {
+        let base = contractId ?? "near"
+        if let residency { return "\(base)-\(residency.rawValue)" }
+        return base
+    }
     let contractId: String?
     let symbol: String
     let name: String

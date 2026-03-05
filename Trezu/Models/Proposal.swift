@@ -745,19 +745,76 @@ struct BatchPaymentResponse: Codable {
     let tokenId: String?
     let submitter: String?
     let status: String?
-    let payments: [BatchPayment]?
+    var payments: [BatchPayment]?
 
     enum CodingKeys: String, CodingKey {
         case tokenId = "token_id"
         case submitter, status, payments
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        tokenId = try container.decodeIfPresent(String.self, forKey: .tokenId)
+        submitter = try container.decodeIfPresent(String.self, forKey: .submitter)
+        status = try container.decodeIfPresent(String.self, forKey: .status)
+        var decoded = try container.decodeIfPresent([BatchPayment].self, forKey: .payments)
+        // Assign stable indices as IDs
+        if decoded != nil {
+            for i in decoded!.indices {
+                decoded![i].id = i
+            }
+        }
+        payments = decoded
+    }
 }
 
 struct BatchPayment: Codable, Identifiable {
-    var id: String { recipient }
+    /// Stable identity based on index, assigned after decoding.
+    var id: Int = 0
     let recipient: String
     let amount: String
-    let status: String?
+
+    /// Payment status is a polymorphic value from the contract (e.g. "Pending" or {"Paid":{"block_height":...}}).
+    /// We decode it as a raw JSON value and extract a display string.
+    let status: BatchPaymentStatus?
+
+    enum CodingKeys: String, CodingKey {
+        case recipient, amount, status
+    }
+}
+
+/// Handles the polymorphic `status` field in batch payments.
+/// Can be a plain string like `"Pending"` or an object like `{"Paid":{"block_height":123}}`.
+enum BatchPaymentStatus: Codable {
+    case string(String)
+    case object(String) // The top-level key, e.g. "Paid"
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let str = try? container.decode(String.self) {
+            self = .string(str)
+        } else if let dict = try? container.decode([String: AnyCodable].self),
+                  let key = dict.keys.first {
+            self = .object(key)
+        } else {
+            self = .string("Unknown")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let str): try container.encode(str)
+        case .object(let key): try container.encode(key)
+        }
+    }
+
+    var displayValue: String {
+        switch self {
+        case .string(let s): return s
+        case .object(let key): return key
+        }
+    }
 }
 
 extension Proposal {

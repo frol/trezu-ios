@@ -375,7 +375,7 @@ class TreasuryService {
             // Try API for price
             if let fetched: TokenMetadata = await api.requestOptional(
                 path: "token/metadata",
-                queryItems: [URLQueryItem(name: "token_id", value: "near")]
+                queryItems: [URLQueryItem(name: "tokenId", value: "near")]
             ) {
                 tokenMetadataCache["near"] = fetched
                 return fetched
