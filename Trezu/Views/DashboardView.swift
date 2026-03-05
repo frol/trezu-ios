@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 struct DashboardView: View {
     @Environment(TreasuryService.self) private var treasuryService
@@ -188,16 +189,33 @@ struct TokenIconView: View {
 
     var body: some View {
         Group {
-            if let icon = icon, let url = URL(string: icon) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
+            if let icon = icon, !icon.isEmpty {
+                if icon.hasPrefix("data:image/svg") {
+                    // SVG data URI — render via WebKit
+                    SVGDataURIView(dataURI: icon)
+                } else if icon.hasPrefix("data:") {
+                    // Raster data URI (PNG, JPEG, etc.)
+                    if let uiImage = Self.decodeRasterDataURI(icon) {
+                        Image(uiImage: uiImage)
                             .resizable()
-                            .scaledToFit()
-                    default:
+                            .scaledToFill()
+                    } else {
                         tokenPlaceholder
                     }
+                } else if let url = URL(string: icon) {
+                    // HTTP(S) URL
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        default:
+                            tokenPlaceholder
+                        }
+                    }
+                } else {
+                    tokenPlaceholder
                 }
             } else {
                 tokenPlaceholder
@@ -215,6 +233,129 @@ struct TokenIconView: View {
                 .font(.subheadline.bold())
                 .foregroundStyle(.tint)
         }
+    }
+
+    /// Decodes a raster (non-SVG) data URI into a UIImage.
+    static func decodeRasterDataURI(_ dataURI: String) -> UIImage? {
+        guard let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
+        let header = String(dataURI[dataURI.startIndex..<commaIndex]).lowercased()
+        let payload = String(dataURI[dataURI.index(after: commaIndex)...])
+
+        let imageData: Data?
+        if header.contains(";base64") {
+            imageData = Data(base64Encoded: payload)
+        } else {
+            guard let decoded = payload.removingPercentEncoding else { return nil }
+            imageData = decoded.data(using: .utf8)
+        }
+
+        guard let data = imageData else { return nil }
+        return UIImage(data: data)
+    }
+}
+
+// MARK: - SVG Data URI Renderer
+
+/// Renders an SVG data URI using a WKWebView snapshot, with caching.
+struct SVGDataURIView: View {
+    let dataURI: String
+
+    @State private var renderedImage: UIImage?
+
+    var body: some View {
+        Group {
+            if let image = renderedImage ?? SVGImageCache.shared.get(dataURI) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                // Show a transparent placeholder while rendering
+                Color.clear
+                    .task(id: dataURI) {
+                        if let cached = SVGImageCache.shared.get(dataURI) {
+                            renderedImage = cached
+                            return
+                        }
+                        let image = await SVGRenderer.render(dataURI: dataURI, size: 128)
+                        if let image {
+                            SVGImageCache.shared.set(dataURI, image: image)
+                        }
+                        renderedImage = image
+                    }
+            }
+        }
+    }
+}
+
+/// In-memory cache for rendered SVG images.
+final class SVGImageCache: @unchecked Sendable {
+    static let shared = SVGImageCache()
+    private var cache: [Int: UIImage] = [:]
+    private let lock = NSLock()
+
+    func get(_ key: String) -> UIImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache[key.hashValue]
+    }
+
+    func set(_ key: String, image: UIImage) {
+        lock.lock()
+        defer { lock.unlock() }
+        cache[key.hashValue] = image
+    }
+}
+
+/// Renders SVG data URIs to UIImage using an offscreen WKWebView.
+@MainActor
+enum SVGRenderer {
+    static func render(dataURI: String, size: CGFloat) async -> UIImage? {
+        // Decode SVG content from data URI
+        guard let commaIndex = dataURI.firstIndex(of: ",") else { return nil }
+        let header = String(dataURI[dataURI.startIndex..<commaIndex]).lowercased()
+        let payload = String(dataURI[dataURI.index(after: commaIndex)...])
+
+        let svgString: String
+        if header.contains(";base64") {
+            guard let data = Data(base64Encoded: payload),
+                  let decoded = String(data: data, encoding: .utf8) else { return nil }
+            svgString = decoded
+        } else {
+            guard let decoded = payload.removingPercentEncoding else { return nil }
+            svgString = decoded
+        }
+
+        let html = """
+        <!DOCTYPE html>
+        <html><head><meta name="viewport" content="width=\(Int(size)), initial-scale=1">
+        <style>
+            * { margin: 0; padding: 0; }
+            html, body { width: \(Int(size))px; height: \(Int(size))px; overflow: hidden; background: transparent; }
+            svg { width: 100%; height: 100%; display: block; }
+        </style></head>
+        <body>\(svgString)</body></html>
+        """
+
+        let config = WKWebViewConfiguration()
+        config.preferences.isElementFullscreenEnabled = false
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: size, height: size), configuration: config)
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+
+        webView.loadHTMLString(html, baseURL: nil)
+
+        // Wait for load
+        for _ in 0..<50 {
+            try? await Task.sleep(for: .milliseconds(50))
+            if !webView.isLoading { break }
+        }
+
+        // Small delay for rendering
+        try? await Task.sleep(for: .milliseconds(100))
+
+        let snapshot = try? await webView.takeSnapshot(configuration: nil)
+        return snapshot
     }
 }
 // MARK: - Treasury Picker Sheet

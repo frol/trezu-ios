@@ -33,13 +33,22 @@ struct TreasuryRootView: View {
         Group {
             if treasuryService.selectedTreasury != nil {
                 MainTabView()
+            } else if treasuryService.isLoading {
+                ProgressView("Loading treasuries...")
+            } else if treasuryService.treasuries.isEmpty {
+                ContentUnavailableView(
+                    "No Treasuries",
+                    systemImage: "building.columns",
+                    description: Text("You don't have access to any treasuries yet.")
+                )
             } else {
-                TreasuryListView()
+                ProgressView()
             }
         }
         .task {
             treasuryService.accountId = authService.currentUser?.accountId
             await treasuryService.loadTreasuries()
+            await treasuryService.autoSelectTreasuryIfNeeded()
         }
     }
 }

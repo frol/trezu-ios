@@ -29,7 +29,8 @@ struct TreasuryAsset: Codable, Identifiable {
     }
 
     var formattedBalance: String {
-        formatTokenAmount(totalBalance, decimals: decimals)
+        let tokenPrice = price.flatMap { Double($0) }
+        return formatTokenAmount(totalBalance, decimals: decimals, tokenPrice: tokenPrice)
     }
 
     var balanceUSD: Double? {
@@ -269,9 +270,17 @@ func formatTokenAmount(_ raw: String, decimals: Int, tokenPrice: Double? = nil) 
         let log10Value = log10(requiredPrecision)
         displayDecimals = min(max(0, Int(ceil(-log10Value))), decimals)
     } else {
-        // Fallback: up to 5 decimals for values < 1, 2 for values >= 1
+        // Fallback: 2 decimals for values >= 1, up to 4 for smaller values
         let doubleValue = NSDecimalNumber(decimal: value).doubleValue
-        displayDecimals = doubleValue >= 1.0 ? 2 : min(5, decimals)
+        if doubleValue >= 1.0 {
+            displayDecimals = 2
+        } else if doubleValue >= 0.01 {
+            displayDecimals = 4
+        } else {
+            // For very small values, show enough digits to see something meaningful
+            let magnitude = doubleValue > 0 ? Int(ceil(-log10(doubleValue))) + 2 : 6
+            displayDecimals = min(magnitude, decimals)
+        }
     }
 
     // Truncate (don't round up) to the desired precision
@@ -297,6 +306,57 @@ func formatTokenAmount(_ raw: String, decimals: Int, tokenPrice: Double? = nil) 
 
     let result = formatter.string(from: finalValue) ?? "\(finalValue)"
     // Remove trailing zeros after decimal point
+    if result.contains(".") {
+        let cleaned = result.replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+        return cleaned.hasSuffix(".") ? String(cleaned.dropLast()) : cleaned
+    }
+    return result
+}
+
+/// Formats a decimal amount string (already in human-readable form, not raw integer) with price-aware precision.
+/// Use this for exchange amounts where the value is already a decimal like "1.003948" rather than a raw "1003948000000".
+func formatDecimalAmount(_ amount: String, tokenPrice: Double? = nil) -> String {
+    guard let value = Decimal(string: amount), value > 0 else { return amount }
+
+    let displayDecimals: Int
+    if let price = tokenPrice, price > 0 {
+        let requiredPrecision = 0.01 / price
+        let log10Value = log10(requiredPrecision)
+        displayDecimals = max(0, Int(ceil(-log10Value)))
+    } else {
+        let doubleValue = NSDecimalNumber(decimal: value).doubleValue
+        if doubleValue >= 1.0 {
+            displayDecimals = 2
+        } else if doubleValue >= 0.01 {
+            displayDecimals = 4
+        } else {
+            let magnitude = doubleValue > 0 ? Int(ceil(-log10(doubleValue))) + 2 : 6
+            displayDecimals = magnitude
+        }
+    }
+
+    // Truncate (don't round up)
+    let multiplier = pow(Decimal(10), displayDecimals)
+    let scaledValue = NSDecimalNumber(decimal: value * multiplier)
+    let flooredScaled = scaledValue.rounding(
+        accordingToBehavior: NSDecimalNumberHandler(
+            roundingMode: .down,
+            scale: 0,
+            raiseOnExactness: false,
+            raiseOnOverflow: false,
+            raiseOnUnderflow: false,
+            raiseOnDivideByZero: false
+        )
+    )
+    let finalValue = flooredScaled.dividing(by: NSDecimalNumber(decimal: multiplier))
+
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.maximumFractionDigits = displayDecimals
+    formatter.minimumFractionDigits = 0
+    formatter.roundingMode = .down
+
+    let result = formatter.string(from: finalValue) ?? "\(finalValue)"
     if result.contains(".") {
         let cleaned = result.replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
         return cleaned.hasSuffix(".") ? String(cleaned.dropLast()) : cleaned

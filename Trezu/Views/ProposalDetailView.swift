@@ -34,42 +34,48 @@ struct ProposalDetailView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.top, 64)
                 } else if let proposal {
-                    VStack(spacing: 0) {
+                    VStack(spacing: 12) {
                         // Success banner
                         if let vote = voteSuccess {
                             voteSuccessBanner(vote)
                                 .padding(.horizontal)
-                                .padding(.bottom, 12)
                         }
 
-                        // Hero section: icon + amount + date
-                        heroSection(proposal)
+                        // Hero card: icon + amount + date + status
+                        VStack(spacing: 0) {
+                            heroSection(proposal)
+                            statusRow(proposal)
+                                .padding(.top, 16)
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 16)
+                        }
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                        .padding(.horizontal)
 
-                        // Status badge
-                        statusRow(proposal)
-                            .padding(.top, 16)
-                            .padding(.horizontal)
-
-                        // Info rows
+                        // Info card: detail rows + voting
                         VStack(spacing: 0) {
                             infoRows(proposal)
                             votingInfoRow(proposal)
                             executedDateRow(proposal)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 4)
+                        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
-                        .padding(.top, 16)
 
                         // Vote actions for pending proposals
                         if proposal.status.isPending {
                             voteActionsSection(proposal)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
+                                .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                                 .padding(.horizontal)
-                                .padding(.top, 16)
                         }
 
                         // View Transaction button
                         viewTransactionButton(proposal)
                             .padding(.horizontal)
-                            .padding(.top, 24)
+                            .padding(.top, 8)
                             .padding(.bottom, 32)
                     }
                 } else if let error {
@@ -80,6 +86,7 @@ struct ProposalDetailView: View {
                     )
                 }
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle(detailTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -134,7 +141,7 @@ struct ProposalDetailView: View {
 
                 VStack(spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(exchange.amountIn)
+                        Text(formatDecimalAmount(exchange.amountIn, tokenPrice: exchangeTokenIn?.price))
                             .font(.system(size: 32, weight: .bold))
                         Text(symbolIn)
                             .font(.system(size: 32, weight: .bold))
@@ -153,7 +160,7 @@ struct ProposalDetailView: View {
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 4) {
-                        Text(exchange.amountOut)
+                        Text(formatDecimalAmount(exchange.amountOut, tokenPrice: exchangeTokenOut?.price))
                             .font(.system(size: 32, weight: .bold))
                         Text(symbolOut)
                             .font(.system(size: 32, weight: .bold))

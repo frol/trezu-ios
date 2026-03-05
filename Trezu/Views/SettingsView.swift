@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(AuthService.self) private var authService
     @Environment(TreasuryService.self) private var treasuryService
     @EnvironmentObject private var walletManager: NEARWalletManager
+    @State private var showTreasuryPicker = false
 
     var body: some View {
         NavigationStack {
@@ -77,7 +78,7 @@ struct SettingsView: View {
                 // Actions
                 Section {
                     Button {
-                        treasuryService.selectedTreasury = nil
+                        showTreasuryPicker = true
                     } label: {
                         Label("Switch Treasury", systemImage: "arrow.triangle.2.circlepath")
                     }
@@ -91,6 +92,9 @@ struct SettingsView: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Settings")
+            .sheet(isPresented: $showTreasuryPicker) {
+                TreasuryPickerSheet()
+            }
         }
     }
 }

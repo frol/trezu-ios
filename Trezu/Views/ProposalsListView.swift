@@ -249,27 +249,35 @@ struct ProposalCard: View {
 
     @State private var resolvedData: ResolvedProposalData?
     @State private var batchRecipientCount: Int?
+    @State private var exchangeTokenIn: TokenMetadata?
+    @State private var exchangeTokenOut: TokenMetadata?
 
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 // Top content
-                VStack(alignment: .leading, spacing: 6) {
-                    // Title row
-                    HStack {
-                        Text(proposal.displayKind)
-                            .font(.headline)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
+                HStack(alignment: .top, spacing: 12) {
+                    // Token icon
+                    cardTokenIcon
+                        .padding(.top, 2)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        // Title row
+                        HStack {
+                            Text(proposal.displayKind)
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+
+                        // Amount / details line
+                        proposalAmountLine
+
+                        // Subtitle: recipient + date
+                        proposalSubtitleLine
                     }
-
-                    // Amount / details line
-                    proposalAmountLine
-
-                    // Subtitle: recipient + date
-                    proposalSubtitleLine
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -286,7 +294,7 @@ struct ProposalCard: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
             }
-            .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 14))
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
@@ -298,6 +306,13 @@ struct ProposalCard: View {
                 let response = await treasuryService.getBatchPayment(batchId: batchId)
                 batchRecipientCount = response?.payments?.count
             }
+            // Resolve exchange token metadata
+            if proposal.isExchange, let exchange = proposal.exchangeData {
+                async let tokenInMeta = treasuryService.getTokenMetadata(tokenId: exchange.tokenIn)
+                async let tokenOutMeta = treasuryService.getTokenMetadata(tokenId: exchange.tokenOut)
+                exchangeTokenIn = await tokenInMeta
+                exchangeTokenOut = await tokenOutMeta
+            }
         }
     }
 
@@ -306,10 +321,13 @@ struct ProposalCard: View {
     @ViewBuilder
     private var proposalAmountLine: some View {
         if proposal.isExchange, let exchange = proposal.exchangeData {
-            // Exchange: show from → to
+            // Exchange: show from → to with resolved token metadata
+            let symbolIn = exchangeTokenIn?.symbol ?? exchange.tokenDisplayName(exchange.tokenIn)
+            let symbolOut = exchangeTokenOut?.symbol ?? exchange.tokenDisplayName(exchange.tokenOut)
+
             VStack(alignment: .leading, spacing: 2) {
-                exchangeTokenRow(symbol: exchange.tokenDisplayName(exchange.tokenIn),
-                                 amount: exchange.amountIn, isIn: true)
+                exchangeTokenRow(symbol: symbolIn,
+                                 amount: exchange.amountIn, price: exchangeTokenIn?.price)
 
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.down")
@@ -318,14 +336,13 @@ struct ProposalCard: View {
                         .frame(width: 20)
                 }
 
-                exchangeTokenRow(symbol: exchange.tokenDisplayName(exchange.tokenOut),
-                                 amount: exchange.amountOut, isIn: false)
+                exchangeTokenRow(symbol: symbolOut,
+                                 amount: exchange.amountOut, price: exchangeTokenOut?.price)
             }
         } else if let data = resolvedData, !data.amount.isEmpty, data.amount != "0" {
             // Resolved payment data — properly formatted
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    SmallTokenIcon(symbol: data.tokenSymbol, iconURL: data.tokenIcon)
                     Text(data.formattedAmount)
                         .font(.body.weight(.semibold))
                     Text(data.tokenSymbol)
@@ -359,19 +376,54 @@ struct ProposalCard: View {
     }
 
     @ViewBuilder
-    private func exchangeTokenRow(symbol: String, amount: String, isIn: Bool) -> some View {
-        HStack(spacing: 4) {
-            SmallTokenIcon(symbol: symbol, iconURL: resolvedExchangeIcon(for: symbol, isIn: isIn))
-            Text(amount)
-                .font(.body.weight(.semibold))
-            Text(symbol)
-                .font(.body)
+    private func exchangeTokenRow(symbol: String, amount: String, price: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(formatDecimalAmount(amount, tokenPrice: price))
+                    .font(.body.weight(.semibold))
+                Text(symbol)
+                    .font(.body)
+            }
+            if let price, price > 0, let amountVal = Double(amount) {
+                Text(formatCurrency(amountVal * price))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
-    private func resolvedExchangeIcon(for symbol: String, isIn: Bool) -> String? {
-        // Exchange icons will be resolved by the detail view's exchange metadata
-        nil
+    // MARK: - Card Token Icon
+
+    @ViewBuilder
+    private var cardTokenIcon: some View {
+        if proposal.isExchange {
+            // Overlapping exchange token icons
+            ZStack(alignment: .bottomTrailing) {
+                TokenIconView(icon: exchangeTokenIn?.icon, symbol: exchangeTokenIn?.symbol ?? "?")
+                    .frame(width: 36, height: 36)
+                TokenIconView(icon: exchangeTokenOut?.icon, symbol: exchangeTokenOut?.symbol ?? "?")
+                    .frame(width: 22, height: 22)
+                    .background(Color(.secondarySystemGroupedBackground))
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color(.secondarySystemGroupedBackground), lineWidth: 2))
+                    .offset(x: 4, y: 4)
+            }
+            .frame(width: 40, height: 40)
+        } else if let data = resolvedData, data.tokenIcon != nil || !data.tokenSymbol.isEmpty {
+            // Payment / batch payment token icon
+            TokenIconView(icon: data.tokenIcon, symbol: data.tokenSymbol)
+                .frame(width: 36, height: 36)
+        } else {
+            // Generic proposal icon
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.12))
+                Image(systemName: proposal.displayIcon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(.tint)
+            }
+            .frame(width: 36, height: 36)
+        }
     }
 
     // MARK: - Subtitle

@@ -43,10 +43,27 @@ class TreasuryService {
 
     // MARK: - Select Treasury
 
+    private static let lastTreasuryKey = "lastSelectedTreasuryDaoId"
+
     func selectTreasury(_ treasury: Treasury) async {
         selectedTreasury = treasury
+        UserDefaults.standard.set(treasury.daoId, forKey: Self.lastTreasuryKey)
         // Load all data for the selected treasury in parallel
         await loadTreasuryData()
+    }
+
+    /// Auto-selects a treasury: restores the last used one, or picks the first available.
+    func autoSelectTreasuryIfNeeded() async {
+        guard selectedTreasury == nil, !treasuries.isEmpty else { return }
+        let visible = treasuries.filter { !$0.isHidden }
+        guard !visible.isEmpty else { return }
+
+        if let lastDaoId = UserDefaults.standard.string(forKey: Self.lastTreasuryKey),
+           let lastTreasury = visible.first(where: { $0.daoId == lastDaoId }) {
+            await selectTreasury(lastTreasury)
+        } else {
+            await selectTreasury(visible[0])
+        }
     }
 
     func loadTreasuryData() async {
@@ -349,7 +366,7 @@ class TreasuryService {
             if let nearAsset = assets.first(where: { $0.contractId == nil || $0.symbol == "NEAR" }),
                let priceStr = nearAsset.price, let price = Double(priceStr) {
                 let metadata = TokenMetadata(
-                    tokenId: nil, symbol: "NEAR", name: "NEAR", icon: nil, decimals: 24,
+                    tokenId: nil, symbol: "NEAR", name: "NEAR", icon: nearAsset.icon, decimals: 24,
                     price: price, network: "near", chainName: nil, chainIcons: nil
                 )
                 tokenMetadataCache["near"] = metadata
