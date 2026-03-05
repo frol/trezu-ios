@@ -247,6 +247,9 @@ struct ProposalCard: View {
     @Environment(TreasuryService.self) private var treasuryService
     @Environment(AuthService.self) private var authService
 
+    @State private var resolvedData: ResolvedProposalData?
+    @State private var batchRecipientCount: Int?
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
@@ -254,7 +257,7 @@ struct ProposalCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     // Title row
                     HStack {
-                        Text(proposal.displayKind == "Transfer" ? "Payment Request" : proposal.displayKind)
+                        Text(proposal.displayKind)
                             .font(.headline)
                         Spacer()
                         Image(systemName: "chevron.right")
@@ -287,6 +290,15 @@ struct ProposalCard: View {
             .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
         }
         .buttonStyle(.plain)
+        .task(id: proposal.id) {
+            let resolved = await treasuryService.resolveProposalData(proposal)
+            resolvedData = resolved
+            // Fetch batch recipient count
+            if let batchId = resolved?.batchPaymentId, !batchId.isEmpty {
+                let response = await treasuryService.getBatchPayment(batchId: batchId)
+                batchRecipientCount = response?.payments?.count
+            }
+        }
     }
 
     // MARK: - Amount Line
@@ -296,13 +308,8 @@ struct ProposalCard: View {
         if proposal.isExchange, let exchange = proposal.exchangeData {
             // Exchange: show from → to
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    SmallTokenIcon(symbol: exchange.tokenDisplayName(exchange.tokenIn))
-                    Text(exchange.amountIn)
-                        .font(.body.weight(.semibold))
-                    Text(exchange.tokenDisplayName(exchange.tokenIn))
-                        .font(.body)
-                }
+                exchangeTokenRow(symbol: exchange.tokenDisplayName(exchange.tokenIn),
+                                 amount: exchange.amountIn, isIn: true)
 
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.down")
@@ -311,34 +318,39 @@ struct ProposalCard: View {
                         .frame(width: 20)
                 }
 
+                exchangeTokenRow(symbol: exchange.tokenDisplayName(exchange.tokenOut),
+                                 amount: exchange.amountOut, isIn: false)
+            }
+        } else if let data = resolvedData, !data.amount.isEmpty, data.amount != "0" {
+            // Resolved payment data — properly formatted
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    SmallTokenIcon(symbol: exchange.tokenDisplayName(exchange.tokenOut))
-                    Text(exchange.amountOut)
+                    SmallTokenIcon(symbol: data.tokenSymbol, iconURL: data.tokenIcon)
+                    Text(data.formattedAmount)
                         .font(.body.weight(.semibold))
-                    Text(exchange.tokenDisplayName(exchange.tokenOut))
+                    Text(data.tokenSymbol)
                         .font(.body)
                 }
+                if let usd = data.formattedUSD {
+                    Text(usd)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-        } else if case .transfer(let action) = proposal.kind {
-            HStack(spacing: 4) {
-                SmallTokenIcon(symbol: tokenSymbolForTransfer(action))
-                Text(formattedTransferAmount(action))
-                    .font(.body.weight(.semibold))
-                Text(tokenSymbolForTransfer(action))
-                    .font(.body)
-            }
-        } else if case .functionCall(let action) = proposal.kind {
-            // For function calls, show the contract
-            HStack(spacing: 4) {
-                Image(systemName: "terminal")
-                    .foregroundStyle(.secondary)
-                Text(action.receiverId)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+        } else if proposal.uiKind == .functionCall {
+            // Generic function call — show contract
+            if case .functionCall(let action) = proposal.kind {
+                HStack(spacing: 4) {
+                    Image(systemName: "terminal")
+                        .foregroundStyle(.secondary)
+                    Text(action.receiverId)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
         } else {
-            // Generic: show kind description
+            // Fallback: show description title
             Text(proposal.decodedDescription.title)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -346,18 +358,47 @@ struct ProposalCard: View {
         }
     }
 
+    @ViewBuilder
+    private func exchangeTokenRow(symbol: String, amount: String, isIn: Bool) -> some View {
+        HStack(spacing: 4) {
+            SmallTokenIcon(symbol: symbol, iconURL: resolvedExchangeIcon(for: symbol, isIn: isIn))
+            Text(amount)
+                .font(.body.weight(.semibold))
+            Text(symbol)
+                .font(.body)
+        }
+    }
+
+    private func resolvedExchangeIcon(for symbol: String, isIn: Bool) -> String? {
+        // Exchange icons will be resolved by the detail view's exchange metadata
+        nil
+    }
+
     // MARK: - Subtitle
 
     @ViewBuilder
     private var proposalSubtitleLine: some View {
         HStack(spacing: 4) {
-            if case .transfer(let action) = proposal.kind {
-                Text("To: \(action.receiverId)")
+            if proposal.uiKind == .batchPaymentRequest {
+                if let count = batchRecipientCount {
+                    Text("\(count) recipient\(count == 1 ? "" : "s")")
+                        .lineLimit(1)
+                } else {
+                    Text("Batch payment")
+                        .lineLimit(1)
+                }
+            } else if proposal.uiKind == .exchange {
+                // No recipient for exchanges
+            } else if let data = resolvedData, !data.receiver.isEmpty,
+                      data.receiver != bulkPaymentContractId {
+                Text("To: \(data.receiver)")
                     .lineLimit(1)
             }
 
             if let date = proposal.submissionDate {
-                if case .transfer = proposal.kind {
+                let showDot = proposal.uiKind != .exchange &&
+                    (proposal.uiKind == .batchPaymentRequest || (resolvedData?.receiver.isEmpty == false && resolvedData?.receiver != bulkPaymentContractId))
+                if showDot {
                     Text("·")
                 }
                 Text(formattedDate(date))
@@ -407,34 +448,6 @@ struct ProposalCard: View {
 
     // MARK: - Helpers
 
-    private func tokenSymbolForTransfer(_ action: TransferAction) -> String {
-        if let tokenId = action.tokenId, !tokenId.isEmpty {
-            return tokenDisplayName(tokenId)
-        }
-        return "NEAR"
-    }
-
-    private func tokenDisplayName(_ token: String) -> String {
-        let known: [String: String] = [
-            "near": "NEAR",
-            "wrap.near": "wNEAR",
-            "usdt.tether-token.near": "USDt",
-        ]
-        if let name = known[token.lowercased()] { return name }
-        if token.hasSuffix(".near") { return token }
-        if token.count > 20 { return "\(token.prefix(6))…\(token.suffix(4))" }
-        return token
-    }
-
-    private func formattedTransferAmount(_ action: TransferAction) -> String {
-        if let tokenId = action.tokenId, !tokenId.isEmpty {
-            // For FT tokens, the amount is already in smallest units
-            // We need the decimals from the assets list
-            return action.amount
-        }
-        return formatNEAR(action.amount)
-    }
-
     private func formattedDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy h:mm a"
@@ -447,8 +460,23 @@ struct ProposalCard: View {
 
 struct SmallTokenIcon: View {
     let symbol: String
+    let iconURL: String?
 
     var body: some View {
+        if let iconURL, let url = URL(string: iconURL) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFill()
+            } placeholder: {
+                fallbackIcon
+            }
+            .frame(width: 20, height: 20)
+            .clipShape(Circle())
+        } else {
+            fallbackIcon
+        }
+    }
+
+    private var fallbackIcon: some View {
         ZStack {
             Circle()
                 .fill(Color.accentColor.opacity(0.15))

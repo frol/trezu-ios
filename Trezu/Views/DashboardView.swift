@@ -1,209 +1,182 @@
 import SwiftUI
-import Charts
 
 struct DashboardView: View {
     @Environment(TreasuryService.self) private var treasuryService
+    @State private var showTreasuryPicker = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    // Total Balance Card
-                    BalanceCard(
-                        totalUSD: treasuryService.totalBalanceUSD,
-                        isLoading: treasuryService.isLoading
-                    )
+                ZStack(alignment: .top) {
+                    // Blue header background
+                    blueHeader
 
-                    // Balance History Chart
-                    if !treasuryService.balanceHistory.isEmpty {
-                        BalanceChartCard(history: treasuryService.balanceHistory)
+                    // Content overlay
+                    VStack(spacing: 0) {
+                        // Spacing for status bar + header content
+                        Spacer()
+                            .frame(height: headerContentHeight)
+
+                        // Portfolio card overlapping the blue area
+                        portfolioCard
+                            .padding(.horizontal, 16)
+                            .offset(y: -40)
                     }
-
-                    // Portfolio Assets
-                    if !treasuryService.assets.isEmpty {
-                        AssetsCard(assets: treasuryService.assets)
-                    }
-
-                    // Recent Activity
-//                    if !treasuryService.recentActivity.isEmpty {
-//                        RecentActivityCard(activity: treasuryService.recentActivity)
-//                    }
                 }
-                .padding()
             }
-            .navigationTitle(treasuryService.selectedTreasury?.name ?? "Dashboard")
+            .background(Color(.systemGroupedBackground))
+            .ignoresSafeArea(edges: .top)
+            .navigationBarHidden(true)
             .refreshable {
                 await treasuryService.refresh()
             }
-        }
-    }
-}
-
-// MARK: - Balance Card
-
-struct BalanceCard: View {
-    let totalUSD: Double
-    let isLoading: Bool
-
-    var body: some View {
-        VStack(spacing: 8) {
-            Text("Total Balance")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            if isLoading && totalUSD == 0 {
-                ProgressView()
-                    .frame(height: 36)
-            } else {
-                Text(formatCurrency(totalUSD))
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+            .sheet(isPresented: $showTreasuryPicker) {
+                TreasuryPickerSheet()
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 24)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
-}
 
-// MARK: - Balance Chart Card
+    // MARK: - Blue Header
 
-struct BalanceChartCard: View {
-    let history: [BalanceHistoryPoint]
+    private let headerContentHeight: CGFloat = 280
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Balance History")
-                .font(.headline)
+    @ViewBuilder
+    private var blueHeader: some View {
+        ZStack {
+            // Blue gradient
+            LinearGradient(
+                colors: [Color(red: 0.2, green: 0.45, blue: 1.0), Color(red: 0.25, green: 0.5, blue: 1.0)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(height: headerContentHeight + 40)
 
-            Chart {
-                ForEach(history) { point in
-                    if let date = point.date {
-                        LineMark(
-                            x: .value("Date", date),
-                            y: .value("Balance", point.totalBalanceUsd)
-                        )
-                        .foregroundStyle(.tint)
-                        .interpolationMethod(.catmullRom)
+            VStack(spacing: 16) {
+                Spacer()
+                    .frame(height: 54) // Status bar offset
 
-                        AreaMark(
-                            x: .value("Date", date),
-                            y: .value("Balance", point.totalBalanceUsd)
-                        )
-                        .foregroundStyle(
-                            .linearGradient(
-                                colors: [.accentColor.opacity(0.2), .clear],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .interpolationMethod(.catmullRom)
+                // Treasury selector pill
+                treasurySelectorPill
+
+                // Total balance
+                VStack(spacing: 6) {
+                    Text("Total Balance")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.8))
+
+                    if treasuryService.isLoading && treasuryService.totalBalanceUSD == 0 {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(height: 40)
+                    } else {
+                        Text(formatCurrency(treasuryService.totalBalanceUSD))
+                            .font(.system(size: 38, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
                     }
                 }
+
+                Spacer()
             }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisValueLabel {
-                        if let usd = value.as(Double.self) {
-                            Text(formatCurrency(usd))
-                                .font(.caption2)
+            .frame(height: headerContentHeight + 40)
+        }
+    }
+
+    // MARK: - Treasury Selector Pill
+
+    @ViewBuilder
+    private var treasurySelectorPill: some View {
+        let name = treasuryService.selectedTreasury?.name ?? "Treasury"
+
+        Button {
+            showTreasuryPicker = true
+        } label: {
+            HStack(spacing: 8) {
+                // Treasury icon
+                Circle()
+                    .fill(.white.opacity(0.25))
+                    .frame(width: 28, height: 28)
+                    .overlay {
+                        Text(String(name.prefix(1)).uppercased())
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.white.opacity(0.15), in: Capsule())
+        }
+    }
+
+    // MARK: - Portfolio Card
+
+    @ViewBuilder
+    private var portfolioCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !treasuryService.assets.isEmpty {
+                Text("Portfolio")
+                    .font(.headline)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+
+                ForEach(Array(treasuryService.assets.enumerated()), id: \.element.id) { index, asset in
+                    HStack(spacing: 12) {
+                        TokenIconView(icon: asset.icon, symbol: asset.symbol)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(asset.symbol)
+                                .font(.body.weight(.medium))
+                            Text(asset.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                    }
-                }
-            }
-            .frame(height: 200)
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-}
 
-// MARK: - Assets Card
+                        Spacer()
 
-struct AssetsCard: View {
-    let assets: [TreasuryAsset]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Portfolio")
-                .font(.headline)
-
-            ForEach(assets) { asset in
-                HStack {
-                    // Token icon placeholder
-                    TokenIconView(icon: asset.icon, symbol: asset.symbol)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(asset.symbol)
-                            .font(.body.weight(.medium))
-                        Text(asset.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(asset.formattedBalance)
-                            .font(.body.weight(.medium))
-                        Text(asset.formattedBalanceUSD)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 4)
-
-                if asset.id != assets.last?.id {
-                    Divider()
-                }
-            }
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-// MARK: - Recent Activity Card
-
-struct RecentActivityCard: View {
-    let activity: [ActivityItem]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Recent Activity")
-                .font(.headline)
-
-            ForEach(activity) { item in
-                HStack {
-                    Image(systemName: item.isIncoming ? "arrow.down.left.circle.fill" : "arrow.up.right.circle.fill")
-                        .foregroundStyle(item.isIncoming ? .green : .orange)
-                        .font(.title3)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.counterparty ?? "Unknown")
-                            .font(.body.weight(.medium))
-                            .lineLimit(1)
-                        if let date = item.activityDate {
-                            Text(date, style: .relative)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(asset.formattedBalance)
+                                .font(.body.weight(.medium))
+                            Text(asset.formattedBalanceUSD)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
 
-                    Spacer()
-
-                    Text(item.formattedAmount)
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(item.isIncoming ? .green : .primary)
+                    if index < treasuryService.assets.count - 1 {
+                        Divider()
+                            .padding(.leading, 64)
+                    }
                 }
-                .padding(.vertical, 4)
 
-                if item.id != activity.last?.id {
-                    Divider()
+                Spacer()
+                    .frame(height: 12)
+            } else if treasuryService.isLoading {
+                VStack {
+                    ProgressView()
+                        .padding(.vertical, 40)
                 }
+                .frame(maxWidth: .infinity)
+            } else {
+                ContentUnavailableView(
+                    "No Assets",
+                    systemImage: "wallet.bifold",
+                    description: Text("This treasury has no assets yet.")
+                )
+                .padding(.vertical, 20)
             }
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
     }
 }
 
@@ -244,3 +217,75 @@ struct TokenIconView: View {
         }
     }
 }
+// MARK: - Treasury Picker Sheet
+
+struct TreasuryPickerSheet: View {
+    @Environment(TreasuryService.self) private var treasuryService
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText = ""
+
+    private var filteredTreasuries: [Treasury] {
+        let visible = treasuryService.treasuries.filter { !$0.isHidden }
+        if searchText.isEmpty { return visible }
+        return visible.filter {
+            $0.name.localizedCaseInsensitiveContains(searchText) ||
+            $0.daoId.localizedCaseInsensitiveContains(searchText)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(filteredTreasuries) { treasury in
+                    Button {
+                        Task {
+                            await treasuryService.selectTreasury(treasury)
+                            dismiss()
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.accentColor.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+                                Text(String(treasury.name.prefix(1)).uppercased())
+                                    .font(.headline.bold())
+                                    .foregroundStyle(.tint)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(treasury.name)
+                                    .font(.body.weight(.medium))
+                                Text(treasury.daoId)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            if treasury.id == treasuryService.selectedTreasury?.id {
+                                Image(systemName: "checkmark")
+                                    .font(.body.weight(.semibold))
+                                    .foregroundStyle(.tint)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    .tint(.primary)
+                }
+            }
+            .navigationTitle("Switch Treasury")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(text: $searchText, prompt: "Search treasuries")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+

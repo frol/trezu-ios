@@ -101,14 +101,14 @@ struct Proposal: Codable, Identifiable {
         )
     }
 
-    /// The display name for the proposal kind, accounting for exchange proposals.
+    /// The display name for the proposal kind, using full UI classification.
     var displayKind: String {
-        isExchange ? "Exchange" : kind.displayName
+        uiKind.rawValue
     }
 
-    /// The icon for the proposal kind, accounting for exchange proposals.
+    /// The icon for the proposal kind, using full UI classification.
     var displayIcon: String {
-        isExchange ? "arrow.triangle.swap" : kind.iconName
+        uiKind.iconName
     }
 
     func userVote(accountId: String) -> Vote? {
@@ -511,6 +511,395 @@ struct BountyDoneAction: Codable {
     enum CodingKeys: String, CodingKey {
         case bountyId = "bounty_id"
         case receiverId = "receiver_id"
+    }
+}
+
+// MARK: - Proposal UI Kind
+
+/// The user-facing classification of a proposal, matching the frontend's display names.
+enum ProposalUIKind: String {
+    case paymentRequest = "Payment Request"
+    case batchPaymentRequest = "Batch Payment Request"
+    case exchange = "Exchange"
+    case functionCall = "Function Call"
+    case earnNEAR = "Earn NEAR"
+    case unstakeNEAR = "Unstake NEAR"
+    case withdrawEarnings = "Withdraw Earnings"
+    case vesting = "Vesting"
+    case changePolicy = "Change Policy"
+    case updateSettings = "Update General Settings"
+    case upgrade = "Upgrade"
+    case addMember = "Add Member"
+    case removeMember = "Remove Member"
+    case setStaking = "Set Staking Contract"
+    case bounty = "Bounty"
+    case vote = "Vote"
+    case unsupported = "Unsupported"
+
+    var iconName: String {
+        switch self {
+        case .paymentRequest: return "arrow.right.circle"
+        case .batchPaymentRequest: return "arrow.right.arrow.left.circle"
+        case .exchange: return "arrow.triangle.swap"
+        case .functionCall: return "terminal"
+        case .earnNEAR: return "chart.line.uptrend.xyaxis"
+        case .unstakeNEAR: return "arrow.down.circle"
+        case .withdrawEarnings: return "banknote"
+        case .vesting: return "calendar.badge.clock"
+        case .changePolicy: return "shield.checkered"
+        case .updateSettings: return "gearshape"
+        case .upgrade: return "arrow.up.circle"
+        case .addMember: return "person.badge.plus"
+        case .removeMember: return "person.badge.minus"
+        case .setStaking: return "lock.circle"
+        case .bounty: return "gift"
+        case .vote: return "hand.thumbsup"
+        case .unsupported: return "questionmark.circle"
+        }
+    }
+}
+
+let bulkPaymentContractId = "bulkpayment.near"
+
+extension Proposal {
+    /// Determines the UI classification of this proposal, matching the frontend's `getProposalUIKind`.
+    var uiKind: ProposalUIKind {
+        if isExchange { return .exchange }
+
+        switch kind {
+        case .transfer:
+            return .paymentRequest
+        case .functionCall(let fc):
+            if isVestingProposal(fc) { return .vesting }
+            if let ftResult = classifyFTTransfer(fc) { return ftResult }
+            if isBatchPayment(fc) { return .batchPaymentRequest }
+            if let mtResult = classifyMTTransfer(fc) { return mtResult }
+            if let staking = classifyStaking(fc) { return staking }
+            return .functionCall
+        case .addMemberToRole:
+            return .addMember
+        case .removeMemberFromRole:
+            return .removeMember
+        case .changePolicy:
+            return .changePolicy
+        case .changeConfig:
+            return .updateSettings
+        case .upgradeSelf, .upgradeRemote:
+            return .upgrade
+        case .setStakingContract:
+            return .setStaking
+        case .addBounty, .bountyDone:
+            return .bounty
+        case .vote:
+            return .vote
+        case .factoryInfoUpdate, .unknown:
+            return .unsupported
+        }
+    }
+
+    // MARK: - FunctionCall Sub-type Detection
+
+    private func isVestingProposal(_ fc: FunctionCallAction) -> Bool {
+        let receiver = fc.receiverId
+        let isLockup = receiver.contains("lockup.near") || receiver == "lockup.near"
+        return isLockup && fc.actions.first?.methodName == "create"
+    }
+
+    private func classifyFTTransfer(_ fc: FunctionCallAction) -> ProposalUIKind? {
+        // Intent withdraw or lockup transfer → Payment Request
+        if isIntentWithdrawProposal(fc) || isLockupTransferProposal(fc) {
+            return .paymentRequest
+        }
+
+        // Exchange detection via description
+        if decodedDescription.fields["proposalAction"] == "asset-exchange" {
+            return .exchange
+        }
+
+        // wrap.near near_withdraw/near_deposit → Exchange
+        if fc.receiverId == "wrap.near" &&
+            fc.actions.contains(where: { $0.methodName == "near_withdraw" || $0.methodName == "near_deposit" }) {
+            return .exchange
+        }
+
+        // ft_transfer / ft_transfer_call
+        guard let action = fc.actions.first(where: { $0.methodName == "ft_transfer" || $0.methodName == "ft_transfer_call" }) else {
+            return nil
+        }
+
+        if action.methodName == "ft_transfer" {
+            return .paymentRequest
+        }
+
+        // ft_transfer_call — check if receiver_id in args is bulk payment contract
+        if let args = action.decodedArgs,
+           let receiverId = args["receiver_id"] as? String,
+           receiverId == bulkPaymentContractId {
+            return .batchPaymentRequest
+        }
+
+        return .paymentRequest
+    }
+
+    private func classifyMTTransfer(_ fc: FunctionCallAction) -> ProposalUIKind? {
+        guard let transfer = fc.actions.first(where: { $0.methodName == "mt_transfer" || $0.methodName == "mt_transfer_call" }) else {
+            return nil
+        }
+        if let args = transfer.decodedArgs,
+           let receiverId = args["receiver_id"] as? String,
+           receiverId == bulkPaymentContractId {
+            return .batchPaymentRequest
+        }
+        return .exchange
+    }
+
+    private func isBatchPayment(_ fc: FunctionCallAction) -> Bool {
+        // Direct call to bulk payment contract with approve_list
+        if fc.receiverId == bulkPaymentContractId {
+            if fc.actions.contains(where: { $0.methodName == "approve_list" }) {
+                return true
+            }
+        }
+
+        // ft_transfer_call or mt_transfer_call with receiver_id = bulkpayment.near
+        for action in fc.actions {
+            if action.methodName == "ft_transfer_call" || action.methodName == "mt_transfer_call" {
+                if let args = action.decodedArgs,
+                   let receiverId = args["receiver_id"] as? String,
+                   receiverId == bulkPaymentContractId {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    private func classifyStaking(_ fc: FunctionCallAction) -> ProposalUIKind? {
+        let receiver = fc.receiverId
+        let isPool = receiver.hasSuffix("poolv1.near") || receiver.hasSuffix("lockup.near")
+        guard isPool else { return nil }
+
+        let stakeMethods: Set<String> = ["stake", "deposit_and_stake", "deposit"]
+        let withdrawMethods: Set<String> = ["withdraw", "withdraw_all", "withdraw_all_from_staking_pool"]
+        let unstakeMethods: Set<String> = ["unstake"]
+
+        if fc.actions.contains(where: { stakeMethods.contains($0.methodName) }) {
+            return .earnNEAR
+        }
+        if fc.actions.contains(where: { withdrawMethods.contains($0.methodName) }) {
+            return .withdrawEarnings
+        }
+        if fc.actions.contains(where: { unstakeMethods.contains($0.methodName) }) {
+            return .unstakeNEAR
+        }
+
+        return nil
+    }
+
+    private func isIntentWithdrawProposal(_ fc: FunctionCallAction) -> Bool {
+        fc.actions.contains(where: { $0.methodName == "ft_withdraw" })
+    }
+
+    private func isLockupTransferProposal(_ fc: FunctionCallAction) -> Bool {
+        fc.receiverId.hasSuffix(".lockup.near") &&
+        fc.actions.contains(where: { $0.methodName == "transfer" })
+    }
+}
+
+// MARK: - Resolved Proposal Data
+
+/// Extracted payment/transfer data from a proposal, with token metadata resolved.
+struct ResolvedProposalData {
+    let tokenId: String        // "near" or contract ID
+    let amount: String         // Raw amount in smallest units
+    let receiver: String       // Recipient account ID
+    var tokenSymbol: String = ""
+    var tokenDecimals: Int = 0
+    var tokenIcon: String?
+    var tokenPrice: Double?
+    var tokenNetwork: String?
+    var tokenChainIcon: String?
+
+    /// Batch payment data, if this is a batch payment proposal.
+    var batchPaymentId: String?
+
+    var formattedAmount: String {
+        guard !amount.isEmpty, amount != "0" else { return "0" }
+        return formatTokenAmount(amount, decimals: tokenDecimals, tokenPrice: tokenPrice)
+    }
+
+    var formattedUSD: String? {
+        guard let price = tokenPrice, price > 0 else { return nil }
+        guard let rawDecimal = Decimal(string: amount) else { return nil }
+        let divisor = pow(Decimal(10), tokenDecimals)
+        let tokenAmount = NSDecimalNumber(decimal: rawDecimal / divisor).doubleValue
+        let usdValue = tokenAmount * price
+        guard usdValue > 0.005 else { return nil } // Skip negligible values
+        return formatCurrency(usdValue)
+    }
+}
+
+/// Batch payment list fetched from the API.
+struct BatchPaymentResponse: Codable {
+    let tokenId: String?
+    let submitter: String?
+    let status: String?
+    let payments: [BatchPayment]?
+
+    enum CodingKeys: String, CodingKey {
+        case tokenId = "token_id"
+        case submitter, status, payments
+    }
+}
+
+struct BatchPayment: Codable, Identifiable {
+    var id: String { recipient }
+    let recipient: String
+    let amount: String
+    let status: String?
+}
+
+extension Proposal {
+    /// Extracts raw payment data from the proposal kind, before token metadata resolution.
+    func extractPaymentData() -> ResolvedProposalData? {
+        switch kind {
+        case .transfer(let action):
+            let tokenId = action.tokenId ?? ""
+            let isNEAR = tokenId.isEmpty
+            return ResolvedProposalData(
+                tokenId: isNEAR ? "near" : tokenId,
+                amount: action.amount,
+                receiver: action.receiverId,
+                tokenSymbol: isNEAR ? "NEAR" : "",
+                tokenDecimals: isNEAR ? 24 : 0
+            )
+
+        case .functionCall(let fc):
+            return extractFunctionCallPaymentData(fc)
+
+        default:
+            return nil
+        }
+    }
+
+    /// Extracts batch payment data (batchId, tokenId, totalAmount) for batch payment proposals.
+    func extractBatchPaymentData() -> (batchId: String, tokenId: String, totalAmount: String)? {
+        guard case .functionCall(let fc) = kind, uiKind == .batchPaymentRequest else { return nil }
+
+        // approve_list (NEAR batch payment)
+        if let action = fc.actions.first(where: { $0.methodName == "approve_list" }) {
+            let args = action.decodedArgs
+            let listId = args?["list_id"] as? String ?? ""
+            return (batchId: listId, tokenId: "near", totalAmount: action.deposit)
+        }
+
+        // ft_transfer_call
+        if let action = fc.actions.first(where: { $0.methodName == "ft_transfer_call" }) {
+            if let args = action.decodedArgs {
+                let batchId = args["msg"] as? String ?? ""
+                let amount = args["amount"] as? String ?? "0"
+                return (batchId: batchId, tokenId: fc.receiverId, totalAmount: amount)
+            }
+        }
+
+        // mt_transfer_call
+        if let action = fc.actions.first(where: { $0.methodName == "mt_transfer_call" }) {
+            if let args = action.decodedArgs {
+                let batchId = args["msg"] as? String ?? ""
+                let amount = args["amount"] as? String ?? "0"
+                let tokenId = args["token_id"] as? String ?? fc.receiverId
+                return (batchId: batchId, tokenId: tokenId, totalAmount: amount)
+            }
+        }
+
+        return nil
+    }
+
+    private func extractFunctionCallPaymentData(_ fc: FunctionCallAction) -> ResolvedProposalData? {
+        // ft_transfer / ft_transfer_call / transfer
+        if let action = fc.actions.first(where: {
+            $0.methodName == "ft_transfer" ||
+            $0.methodName == "ft_transfer_call" ||
+            $0.methodName == "transfer"
+        }) {
+            // "transfer" method only counts for lockup contracts
+            if action.methodName == "transfer" && !fc.receiverId.hasSuffix(".lockup.near") {
+                return nil
+            }
+
+            if let args = action.decodedArgs {
+                let tokenId = action.methodName == "transfer"
+                    ? "near"
+                    : fc.receiverId
+                let isNEAR = tokenId == "near"
+                return ResolvedProposalData(
+                    tokenId: tokenId,
+                    amount: args["amount"] as? String ?? "0",
+                    receiver: args["receiver_id"] as? String ?? "",
+                    tokenSymbol: isNEAR ? "NEAR" : "",
+                    tokenDecimals: isNEAR ? 24 : 0
+                )
+            }
+        }
+
+        // ft_withdraw (Intents)
+        if let action = fc.actions.first(where: { $0.methodName == "ft_withdraw" }) {
+            if let args = action.decodedArgs {
+                let token = args["token"] as? String ?? ""
+                let receiverId = args["receiver_id"] as? String ?? ""
+                let memo = args["memo"] as? String ?? ""
+                let isExternalWithdraw = receiverId == token && memo.hasPrefix("WITHDRAW_TO:")
+                let receiver = isExternalWithdraw
+                    ? String(memo.dropFirst("WITHDRAW_TO:".count))
+                    : receiverId
+
+                return ResolvedProposalData(
+                    tokenId: "nep141:\(token)",
+                    amount: args["amount"] as? String ?? "0",
+                    receiver: receiver
+                )
+            }
+        }
+
+        // Staking proposals — amount is NEAR
+        let uiKind = self.uiKind
+        if uiKind == .earnNEAR || uiKind == .unstakeNEAR || uiKind == .withdrawEarnings {
+            let stakingAction = fc.actions.first(where: {
+                ["stake", "deposit_and_stake", "deposit", "withdraw", "withdraw_all",
+                 "withdraw_all_from_staking_pool", "unstake"].contains($0.methodName)
+            })
+            let amount: String
+            if let args = stakingAction?.decodedArgs, let amt = args["amount"] as? String {
+                amount = amt
+            } else if let deposit = stakingAction.map({ $0.deposit }), deposit != "0" {
+                amount = deposit
+            } else {
+                amount = decodedDescription.fields["amount"] ?? "0"
+            }
+
+            return ResolvedProposalData(
+                tokenId: "near",
+                amount: amount,
+                receiver: fc.receiverId,
+                tokenSymbol: "NEAR",
+                tokenDecimals: 24
+            )
+        }
+
+        // approve_list (NEAR batch payment)
+        if fc.receiverId == bulkPaymentContractId,
+           let action = fc.actions.first(where: { $0.methodName == "approve_list" }) {
+            return ResolvedProposalData(
+                tokenId: "near",
+                amount: action.deposit,
+                receiver: bulkPaymentContractId,
+                tokenSymbol: "NEAR",
+                tokenDecimals: 24
+            )
+        }
+
+        return nil
     }
 }
 

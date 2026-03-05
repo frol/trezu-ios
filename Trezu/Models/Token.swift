@@ -108,11 +108,22 @@ struct TokenMetadata: Codable, Identifiable {
     let name: String
     let icon: String?
     let decimals: Int
+    let price: Double?
+    let network: String?
+    let chainName: String?
+    let chainIcons: ChainIcons?
 
     enum CodingKeys: String, CodingKey {
         case tokenId = "token_id"
-        case symbol, name, icon, decimals
+        case symbol, name, icon, decimals, price, network
+        case chainName = "chain_name"
+        case chainIcons = "chain_icons"
     }
+}
+
+struct ChainIcons: Codable {
+    let dark: String?
+    let light: String?
 }
 
 // MARK: - Balance History
@@ -239,26 +250,58 @@ struct ActivityTokenMetadata: Codable {
 
 // MARK: - Formatting Helpers
 
-func formatTokenAmount(_ raw: String, decimals: Int) -> String {
-    guard let rawDouble = Double(raw) else { return raw }
-    let divisor = pow(10.0, Double(decimals))
-    let value = rawDouble / divisor
+/// Formats a raw token amount with price-aware precision.
+/// Shows enough decimal places so the smallest visible increment represents ~$0.01.
+/// Falls back to a sensible default when price is unavailable.
+func formatTokenAmount(_ raw: String, decimals: Int, tokenPrice: Double? = nil) -> String {
+    guard let rawDecimal = Decimal(string: raw) else { return raw }
+    let divisor = pow(Decimal(10), decimals)
+    let value = rawDecimal / divisor
 
-    if value >= 1 {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 4
-        formatter.minimumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.4f", value)
-    } else if value > 0 {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumSignificantDigits = 6
-        formatter.minimumSignificantDigits = 2
-        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.8f", value)
+    guard value > 0 else { return "0" }
+
+    let displayDecimals: Int
+    if let price = tokenPrice, price > 0 {
+        // Calculate decimals needed to represent $0.01:
+        // requiredPrecision = 0.01 / price
+        // decimalsNeeded = ceil(-log10(requiredPrecision))
+        let requiredPrecision = 0.01 / price
+        let log10Value = log10(requiredPrecision)
+        displayDecimals = min(max(0, Int(ceil(-log10Value))), decimals)
     } else {
-        return "0"
+        // Fallback: up to 5 decimals for values < 1, 2 for values >= 1
+        let doubleValue = NSDecimalNumber(decimal: value).doubleValue
+        displayDecimals = doubleValue >= 1.0 ? 2 : min(5, decimals)
     }
+
+    // Truncate (don't round up) to the desired precision
+    let multiplier = pow(Decimal(10), displayDecimals)
+    let scaledValue = NSDecimalNumber(decimal: value * multiplier)
+    let flooredScaled = scaledValue.rounding(
+        accordingToBehavior: NSDecimalNumberHandler(
+            roundingMode: .down,
+            scale: 0,
+            raiseOnExactness: false,
+            raiseOnOverflow: false,
+            raiseOnUnderflow: false,
+            raiseOnDivideByZero: false
+        )
+    )
+    let finalValue = flooredScaled.dividing(by: NSDecimalNumber(decimal: multiplier))
+
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.maximumFractionDigits = displayDecimals
+    formatter.minimumFractionDigits = 0
+    formatter.roundingMode = .down
+
+    let result = formatter.string(from: finalValue) ?? "\(finalValue)"
+    // Remove trailing zeros after decimal point
+    if result.contains(".") {
+        let cleaned = result.replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+        return cleaned.hasSuffix(".") ? String(cleaned.dropLast()) : cleaned
+    }
+    return result
 }
 
 func formatCurrency(_ value: Double) -> String {

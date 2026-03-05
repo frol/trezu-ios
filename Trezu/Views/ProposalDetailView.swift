@@ -10,6 +10,10 @@ struct ProposalDetailView: View {
     @EnvironmentObject private var walletManager: NEARWalletManager
 
     @State private var proposal: Proposal?
+    @State private var resolvedData: ResolvedProposalData?
+    @State private var batchPayments: [BatchPayment]?
+    @State private var exchangeTokenIn: TokenMetadata?
+    @State private var exchangeTokenOut: TokenMetadata?
     @State private var isLoading = true
     @State private var error: String?
     @State private var showVoteConfirmation = false
@@ -101,8 +105,7 @@ struct ProposalDetailView: View {
 
     private var detailTitle: String {
         guard let proposal else { return "Request #\(proposalId)" }
-        let kindName = proposal.displayKind == "Transfer" ? "Payment Request" : proposal.displayKind
-        return "\(kindName) #\(proposal.id)"
+        return "\(proposal.displayKind) #\(proposal.id)"
     }
 
     // MARK: - Hero Section
@@ -112,11 +115,20 @@ struct ProposalDetailView: View {
         VStack(spacing: 8) {
             if proposal.isExchange, let exchange = proposal.exchangeData {
                 // Exchange hero
+                let symbolIn = exchangeTokenIn?.symbol ?? exchange.tokenDisplayName(exchange.tokenIn)
+                let symbolOut = exchangeTokenOut?.symbol ?? exchange.tokenDisplayName(exchange.tokenOut)
+
                 HStack(spacing: -8) {
-                    TokenIconView(icon: nil, symbol: exchange.tokenDisplayName(exchange.tokenIn))
-                        .frame(width: 44, height: 44)
-                    TokenIconView(icon: nil, symbol: exchange.tokenDisplayName(exchange.tokenOut))
-                        .frame(width: 44, height: 44)
+                    TokenIconWithNetwork(
+                        icon: exchangeTokenIn?.icon,
+                        symbol: symbolIn,
+                        chainIcon: exchangeTokenIn?.chainIcons?.light
+                    )
+                    TokenIconWithNetwork(
+                        icon: exchangeTokenOut?.icon,
+                        symbol: symbolOut,
+                        chainIcon: exchangeTokenOut?.chainIcons?.light
+                    )
                 }
                 .padding(.top, 16)
 
@@ -124,31 +136,53 @@ struct ProposalDetailView: View {
                     HStack(spacing: 4) {
                         Text(exchange.amountIn)
                             .font(.system(size: 32, weight: .bold))
-                        Text(exchange.tokenDisplayName(exchange.tokenIn))
+                        Text(symbolIn)
                             .font(.system(size: 32, weight: .bold))
                     }
+
+                    // USD value for input
+                    if let price = exchangeTokenIn?.price, price > 0,
+                       let inVal = Double(exchange.amountIn) {
+                        Text(formatCurrency(inVal * price))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Image(systemName: "arrow.down")
                         .font(.title3)
                         .foregroundStyle(.secondary)
+
                     HStack(spacing: 4) {
                         Text(exchange.amountOut)
                             .font(.system(size: 32, weight: .bold))
-                        Text(exchange.tokenDisplayName(exchange.tokenOut))
+                        Text(symbolOut)
                             .font(.system(size: 32, weight: .bold))
                     }
+
+                    // USD value for output
+                    if let price = exchangeTokenOut?.price, price > 0,
+                       let outVal = Double(exchange.amountOut) {
+                        Text(formatCurrency(outVal * price))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-            } else if case .transfer(let action) = proposal.kind {
-                // Transfer hero
-                let symbol = transferTokenSymbol(action)
-                TokenIconView(icon: nil, symbol: symbol)
-                    .frame(width: 48, height: 48)
+            } else if let data = resolvedData, !data.amount.isEmpty, data.amount != "0" {
+                // Payment/transfer/staking hero with resolved metadata
+                TokenIconWithNetwork(icon: data.tokenIcon, symbol: data.tokenSymbol, chainIcon: data.tokenChainIcon)
                     .padding(.top, 16)
 
                 HStack(spacing: 6) {
-                    Text(transferFormattedAmount(action))
+                    Text(data.formattedAmount)
                         .font(.system(size: 32, weight: .bold))
-                    Text(symbol)
+                    Text(data.tokenSymbol)
                         .font(.system(size: 32, weight: .bold))
+                }
+
+                if let usd = data.formattedUSD {
+                    Text(usd)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
             } else {
                 // Generic hero
@@ -194,27 +228,43 @@ struct ProposalDetailView: View {
 
     @ViewBuilder
     private func infoRows(_ proposal: Proposal) -> some View {
-        // Recipient
-        if case .transfer(let action) = proposal.kind {
-            DetailRow(label: "Recipient") {
-                AccountDisplay(accountId: action.receiverId)
-            }
+        let uiKind = proposal.uiKind
 
-            DashedDivider()
+        // Recipient — skip for exchanges and batch payments
+        if uiKind != .exchange && uiKind != .batchPaymentRequest {
+            if let data = resolvedData, !data.receiver.isEmpty,
+               data.receiver != bulkPaymentContractId {
+                DetailRow(label: "Recipient") {
+                    AccountDisplay(accountId: data.receiver)
+                }
+                DashedDivider()
+            } else if case .transfer(let action) = proposal.kind, resolvedData == nil {
+                DetailRow(label: "Recipient") {
+                    AccountDisplay(accountId: action.receiverId)
+                }
+                DashedDivider()
+            }
         }
 
         if case .functionCall(let action) = proposal.kind {
-            DetailRow(label: "Contract") {
-                AccountDisplay(accountId: action.receiverId)
-            }
-            if let first = action.actions.first {
-                DashedDivider()
-                DetailRow(label: "Method") {
-                    Text(first.methodName)
-                        .font(.subheadline)
+            if uiKind == .functionCall {
+                DetailRow(label: "Contract") {
+                    AccountDisplay(accountId: action.receiverId)
                 }
+                if let first = action.actions.first {
+                    DashedDivider()
+                    DetailRow(label: "Method") {
+                        Text(first.methodName)
+                            .font(.subheadline)
+                    }
+                }
+                DashedDivider()
+            } else if uiKind == .earnNEAR || uiKind == .unstakeNEAR || uiKind == .withdrawEarnings {
+                DetailRow(label: "Validator") {
+                    AccountDisplay(accountId: action.receiverId)
+                }
+                DashedDivider()
             }
-            DashedDivider()
         }
 
         if case .addMemberToRole(let action) = proposal.kind {
@@ -241,7 +291,7 @@ struct ProposalDetailView: View {
             DashedDivider()
         }
 
-        // Exchange extra details
+        // Exchange extra details — no recipient, show slippage/deposit
         if let exchange = proposal.exchangeData {
             if let slippage = exchange.slippage {
                 DetailRow(label: "Slippage") {
@@ -260,12 +310,67 @@ struct ProposalDetailView: View {
             }
         }
 
+        // Batch payment recipients
+        if uiKind == .batchPaymentRequest {
+            batchPaymentRecipientsSection
+            DashedDivider()
+        }
+
         // Requester
         DetailRow(label: "Requester") {
             AccountDisplay(accountId: proposal.proposer)
         }
 
         DashedDivider()
+    }
+
+    // MARK: - Batch Payment Recipients
+
+    @ViewBuilder
+    private var batchPaymentRecipientsSection: some View {
+        if let payments = batchPayments, !payments.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Recipients (\(payments.count))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 12)
+
+                ForEach(Array(payments.enumerated()), id: \.element.id) { index, payment in
+                    HStack {
+                        HStack(spacing: 6) {
+                            Text("\(index + 1).")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 24, alignment: .leading)
+                            Text(payment.recipient)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer()
+                        if let data = resolvedData {
+                            Text("\(formatTokenAmount(payment.amount, decimals: data.tokenDecimals, tokenPrice: data.tokenPrice)) \(data.tokenSymbol)")
+                                .font(.subheadline.weight(.medium))
+                        }
+                    }
+
+                    if index < payments.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+            .padding(.bottom, 12)
+        } else if resolvedData?.batchPaymentId != nil {
+            HStack {
+                Text("Recipients")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                ProgressView()
+                    .controlSize(.small)
+            }
+            .padding(.vertical, 12)
+        }
     }
 
     // MARK: - Voting Info Row
@@ -452,24 +557,6 @@ struct ProposalDetailView: View {
         }
     }
 
-    private func transferTokenSymbol(_ action: TransferAction) -> String {
-        if let tokenId = action.tokenId, !tokenId.isEmpty {
-            let known: [String: String] = [
-                "near": "NEAR", "wrap.near": "wNEAR",
-                "usdt.tether-token.near": "USDt",
-            ]
-            return known[tokenId.lowercased()] ?? tokenId
-        }
-        return "NEAR"
-    }
-
-    private func transferFormattedAmount(_ action: TransferAction) -> String {
-        if let tokenId = action.tokenId, !tokenId.isEmpty {
-            return action.amount
-        }
-        return formatNEAR(action.amount)
-    }
-
     private func formattedDateUTC(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy h:mm a"
@@ -483,7 +570,24 @@ struct ProposalDetailView: View {
         isLoading = true
         error = nil
         do {
-            proposal = try await treasuryService.loadProposal(proposalId: proposalId)
+            let loaded = try await treasuryService.loadProposal(proposalId: proposalId)
+            proposal = loaded
+            let resolved = await treasuryService.resolveProposalData(loaded)
+            resolvedData = resolved
+
+            // Fetch batch payment recipients if applicable
+            if let batchId = resolved?.batchPaymentId, !batchId.isEmpty {
+                let response = await treasuryService.getBatchPayment(batchId: batchId)
+                batchPayments = response?.payments
+            }
+
+            // Resolve exchange token metadata for icons and USD
+            if loaded.isExchange, let exchange = loaded.exchangeData {
+                async let tokenInMeta = treasuryService.getTokenMetadata(tokenId: exchange.tokenIn)
+                async let tokenOutMeta = treasuryService.getTokenMetadata(tokenId: exchange.tokenOut)
+                exchangeTokenIn = await tokenInMeta
+                exchangeTokenOut = await tokenOutMeta
+            }
         } catch {
             self.error = error.localizedDescription
         }
@@ -546,6 +650,34 @@ private struct Line: Shape {
         path.move(to: CGPoint(x: 0, y: rect.midY))
         path.addLine(to: CGPoint(x: rect.width, y: rect.midY))
         return path
+    }
+}
+
+// MARK: - Token Icon with Network Badge
+
+struct TokenIconWithNetwork: View {
+    let icon: String?
+    let symbol: String
+    let chainIcon: String?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            TokenIconView(icon: icon, symbol: symbol)
+                .frame(width: 48, height: 48)
+
+            if let chainIcon, let url = URL(string: chainIcon) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    EmptyView()
+                }
+                .frame(width: 16, height: 16)
+                .background(Color(.systemBackground))
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 1))
+                .offset(x: 2, y: 2)
+            }
+        }
     }
 }
 

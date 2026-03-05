@@ -326,6 +326,114 @@ class TreasuryService {
         )
     }
 
+    // MARK: - Token Metadata Cache
+
+    /// In-memory cache of token metadata keyed by token ID.
+    private var tokenMetadataCache: [String: TokenMetadata] = [:]
+
+    /// NEAR metadata constant — no API call needed. Price will be fetched on first use.
+    private static let nearMetadata = TokenMetadata(
+        tokenId: nil, symbol: "NEAR", name: "NEAR", icon: nil, decimals: 24,
+        price: nil, network: "near", chainName: nil, chainIcons: nil
+    )
+
+    /// Resolves token metadata for a given token ID, using cached data or fetching from API.
+    func getTokenMetadata(tokenId: String) async -> TokenMetadata {
+        // Check cache first (including NEAR)
+        if let cached = tokenMetadataCache[tokenId] {
+            return cached
+        }
+
+        // For NEAR, try to get price from assets first
+        if tokenId == "near" || tokenId.isEmpty {
+            if let nearAsset = assets.first(where: { $0.contractId == nil || $0.symbol == "NEAR" }),
+               let priceStr = nearAsset.price, let price = Double(priceStr) {
+                let metadata = TokenMetadata(
+                    tokenId: nil, symbol: "NEAR", name: "NEAR", icon: nil, decimals: 24,
+                    price: price, network: "near", chainName: nil, chainIcons: nil
+                )
+                tokenMetadataCache["near"] = metadata
+                return metadata
+            }
+            // Try API for price
+            if let fetched: TokenMetadata = await api.requestOptional(
+                path: "token/metadata",
+                queryItems: [URLQueryItem(name: "token_id", value: "near")]
+            ) {
+                tokenMetadataCache["near"] = fetched
+                return fetched
+            }
+            return Self.nearMetadata
+        }
+
+        // Check loaded treasury assets first (but still prefer API for price info)
+        if let asset = assets.first(where: { ($0.contractId ?? "near") == tokenId }) {
+            let priceDouble = asset.price.flatMap { Double($0) }
+            let metadata = TokenMetadata(
+                tokenId: asset.contractId,
+                symbol: asset.symbol,
+                name: asset.name,
+                icon: asset.icon,
+                decimals: asset.decimals,
+                price: priceDouble,
+                network: nil, chainName: nil, chainIcons: nil
+            )
+            tokenMetadataCache[tokenId] = metadata
+            return metadata
+        }
+
+        // Strip nep141: prefix if present for API call
+        let queryId = tokenId.hasPrefix("nep141:") ? String(tokenId.dropFirst(7)) : tokenId
+
+        // Fetch from API
+        do {
+            let metadata = try await api.getTokenMetadata(tokenId: queryId)
+            tokenMetadataCache[tokenId] = metadata
+            return metadata
+        } catch {
+            print("Failed to fetch token metadata for \(tokenId): \(error)")
+            // Return a fallback
+            let fallback = TokenMetadata(
+                tokenId: queryId,
+                symbol: tokenId.hasSuffix(".near") ? tokenId : String(tokenId.prefix(8)),
+                name: tokenId,
+                icon: nil,
+                decimals: 0,
+                price: nil, network: nil, chainName: nil, chainIcons: nil
+            )
+            tokenMetadataCache[tokenId] = fallback
+            return fallback
+        }
+    }
+
+    /// Resolves payment data for a proposal, filling in token metadata.
+    func resolveProposalData(_ proposal: Proposal) async -> ResolvedProposalData? {
+        guard var data = proposal.extractPaymentData() else { return nil }
+        let metadata = await getTokenMetadata(tokenId: data.tokenId)
+        data.tokenSymbol = metadata.symbol
+        data.tokenDecimals = metadata.decimals
+        data.tokenIcon = metadata.icon
+        data.tokenPrice = metadata.price
+        data.tokenNetwork = metadata.network
+        data.tokenChainIcon = metadata.chainIcons?.light
+
+        // For batch payments, extract the batch ID
+        if let batchData = proposal.extractBatchPaymentData() {
+            data.batchPaymentId = batchData.batchId
+        }
+
+        return data
+    }
+
+    /// Fetches batch payment details from the API.
+    func getBatchPayment(batchId: String) async -> BatchPaymentResponse? {
+        guard !batchId.isEmpty else { return nil }
+        return await api.requestOptional(
+            path: "bulk-payment/get",
+            queryItems: [URLQueryItem(name: "batchId", value: batchId)]
+        )
+    }
+
     // MARK: - Refresh
 
     func refresh() async {
