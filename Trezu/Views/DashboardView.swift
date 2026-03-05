@@ -176,7 +176,7 @@ struct DashboardView: View {
                 .padding(.vertical, 20)
             }
         }
-        .background(Color(.systemBackground), in: RoundedRectangle(cornerRadius: 20))
+        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
     }
 }
