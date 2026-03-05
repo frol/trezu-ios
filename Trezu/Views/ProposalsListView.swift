@@ -18,6 +18,8 @@ struct ProposalsListView: View {
     @State private var selectedProposal: Proposal?
     /// Tracks whether we need to reload on next appearance (e.g. returning from detail).
     @State private var needsRefresh = false
+    /// Slide direction for tab transitions.
+    @State private var slideFromTrailing = true
 
     private var hasMore: Bool { proposals.count < totalProposals }
 
@@ -31,88 +33,65 @@ struct ProposalsListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                // Segmented control + history sub-filter
-                Section {
-                    Picker("", selection: $selectedTab) {
-                        Text("Pending").tag(RequestsTab.pending)
-                        Text("History").tag(RequestsTab.history)
-                    }
-                    .pickerStyle(.segmented)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-
-                    if selectedTab == .history {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(RequestsTab.historyCases, id: \.self) { filter in
-                                    FilterChip(
-                                        title: filter.displayName,
-                                        isSelected: historyFilter == filter
-                                    ) {
-                                        historyFilter = filter
-                                    }
-                                }
-                            }
-                        }
-                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
-                    }
+            VStack(spacing: 0) {
+                // Segmented control
+                Picker("", selection: $selectedTab) {
+                    Text("Pending").tag(RequestsTab.pending)
+                    Text("History").tag(RequestsTab.history)
                 }
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
 
-                // Proposals
-                Section {
-                    if isLoading && proposals.isEmpty {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 64)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                    } else if proposals.isEmpty {
-                        ContentUnavailableView(
-                            "No Requests",
-                            systemImage: "doc.text",
-                            description: Text("No \((selectedTab == .history ? historyFilter : selectedTab).displayName.lowercased()) requests.")
-                        )
-                        .padding(.top, 32)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    } else {
-                        ForEach(proposals) { proposal in
-                            ProposalCard(proposal: proposal) {
-                                selectedProposal = proposal
-                            }
-                            .onAppear {
-                                if proposal == proposals.last, hasMore, !isLoadingMore {
-                                    Task { await loadNextPage() }
+                // History sub-filter
+                if selectedTab == .history {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(RequestsTab.historyCases, id: \.self) { filter in
+                                FilterChip(
+                                    title: filter.displayName,
+                                    isSelected: historyFilter == filter
+                                ) {
+                                    historyFilter = filter
                                 }
                             }
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                         }
-
-                        if isLoadingMore {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 8)
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                        }
+                        .padding(.horizontal)
                     }
+                    .padding(.bottom, 8)
+                }
+
+                // Proposals list with slide transition on tab change
+                proposalsList
+                    .id(loadTrigger)
+                    .transition(.push(from: slideFromTrailing ? .trailing : .leading))
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if !showSearch {
+                    Button {
+                        showSearch = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 52, height: 52)
+                            .background(Color.accentColor, in: Circle())
+                            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+                    }
+                    .padding(.trailing, 20)
+                    .padding(.bottom, 20)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Requests")
             .searchable(text: $searchText, isPresented: $showSearch, placement: .toolbar, prompt: "Search requests")
-            .refreshable {
-                await reload()
-            }
             .sheet(item: $selectedProposal) { proposal in
                 ProposalDetailView(proposalId: proposal.id)
             }
+            .onChange(of: selectedTab) { oldValue, newValue in
+                slideFromTrailing = newValue == .history
+            }
+//            .animation(.smooth(duration: 0.3), value: loadTrigger)
             .task(id: loadTrigger) {
                 await reload(clearList: true)
             }
@@ -128,16 +107,64 @@ struct ProposalsListView: View {
         }
     }
 
+    // MARK: - Proposals List Content
+
+    private var proposalsList: some View {
+        List {
+            if isLoading && proposals.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 64)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            } else if proposals.isEmpty {
+                ContentUnavailableView(
+                    "No Requests",
+                    systemImage: "doc.text",
+                    description: Text("No \((selectedTab == .history ? historyFilter : selectedTab).displayName.lowercased()) requests.")
+                )
+                .padding(.top, 32)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            } else {
+                ForEach(proposals) { proposal in
+                    ProposalCard(proposal: proposal) {
+                        selectedProposal = proposal
+                    }
+                    .onAppear {
+                        if proposal == proposals.last, hasMore, !isLoadingMore {
+                            Task { await loadNextPage() }
+                        }
+                    }
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                }
+
+                if isLoadingMore {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .refreshable {
+            await reload()
+        }
+    }
+
     // MARK: - Data Loading
 
     private func reload(clearList: Bool = false) async {
         currentPage = 0
         if clearList || proposals.isEmpty {
-            withAnimation {
-                proposals = []
-                totalProposals = 0
-                isLoading = true
-            }
+            proposals = []
+            totalProposals = 0
+            isLoading = true
         }
         error = nil
 
@@ -147,17 +174,15 @@ struct ProposalsListView: View {
                 page: 0,
                 search: searchText.isEmpty ? nil : searchText
             )
-            withAnimation {
-                proposals = result.proposals
-                totalProposals = result.total
-                isLoading = false
-            }
+            proposals = result.proposals
+            totalProposals = result.total
         } catch is CancellationError {
             return
         } catch {
             self.error = error.localizedDescription
-            isLoading = false
         }
+
+        isLoading = false
     }
 
     private func loadNextPage() async {
@@ -170,10 +195,8 @@ struct ProposalsListView: View {
                 page: nextPage,
                 search: searchText.isEmpty ? nil : searchText
             )
-            withAnimation {
-                proposals.append(contentsOf: result.proposals)
-                totalProposals = result.total
-            }
+            proposals.append(contentsOf: result.proposals)
+            totalProposals = result.total
             currentPage = nextPage
         } catch is CancellationError {
             return
