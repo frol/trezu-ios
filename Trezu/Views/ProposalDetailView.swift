@@ -21,6 +21,7 @@ struct ProposalDetailView: View {
     @State private var isVoting = false
     @State private var voteError: String?
     @State private var voteSuccess: Vote?
+    @State private var showUTC = false
 
     private var currentAccountId: String {
         authService.currentUser?.accountId ?? ""
@@ -206,10 +207,11 @@ struct ProposalDetailView: View {
 
             // Date
             if let date = proposal.submissionDate {
-                Text(formattedDateUTC(date))
+                Text(formattedDateLocal(date))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.top, 2)
+                    .onTapGesture { showUTC.toggle() }
             }
         }
         .frame(maxWidth: .infinity)
@@ -418,8 +420,9 @@ struct ProposalDetailView: View {
         if !proposal.status.isPending {
             DetailRow(label: proposal.status.displayName) {
                 if let date = proposal.submissionDate {
-                    Text(formattedDateUTC(date))
+                    Text(formattedDateLocal(date))
                         .font(.subheadline)
+                        .onTapGesture { showUTC.toggle() }
                 }
             }
         }
@@ -564,11 +567,17 @@ struct ProposalDetailView: View {
         }
     }
 
-    private func formattedDateUTC(_ date: Date) -> String {
+    private func formattedDateLocal(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy h:mm a"
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        return formatter.string(from: date) + " UTC"
+        if showUTC {
+            formatter.timeZone = TimeZone(identifier: "UTC")
+            return formatter.string(from: date) + " UTC"
+        } else {
+            formatter.timeZone = .current
+            let tz = TimeZone.current.abbreviation() ?? ""
+            return formatter.string(from: date) + " " + tz
+        }
     }
 
     // MARK: - Data Loading

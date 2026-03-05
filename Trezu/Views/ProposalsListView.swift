@@ -9,6 +9,7 @@ struct ProposalsListView: View {
     @State private var totalProposals = 0
     @State private var currentPage = 0
     @State private var selectedTab: RequestsTab = .pending
+    @State private var historyFilter: RequestsTab = .history
     @State private var searchText = ""
     @State private var isLoading = false
     @State private var isLoadingMore = false
@@ -21,98 +22,99 @@ struct ProposalsListView: View {
     private var hasMore: Bool { proposals.count < totalProposals }
 
     private var effectiveStatuses: [String] {
-        selectedTab.statuses
+        selectedTab == .history ? historyFilter.statuses : selectedTab.statuses
     }
 
     private var loadTrigger: String {
-        "\(selectedTab)-\(searchText)"
+        "\(selectedTab)-\(historyFilter)-\(searchText)"
     }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // Segmented control
-                Picker("", selection: $selectedTab) {
-                    Text("Pending").tag(RequestsTab.pending)
-                    Text("History").tag(RequestsTab.history)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-
-                // History sub-filter
-                if selectedTab == .history {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(RequestsTab.historyCases, id: \.self) { tab in
-                                FilterChip(
-                                    title: tab.displayName,
-                                    isSelected: selectedTab == tab
-                                ) {
-                                    selectedTab = tab
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, 8)
+            List {
+                // Segmented control + history sub-filter
+                Section {
+                    Picker("", selection: $selectedTab) {
+                        Text("Pending").tag(RequestsTab.pending)
+                        Text("History").tag(RequestsTab.history)
                     }
-                }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
 
-                // Proposals list
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        if isLoading && proposals.isEmpty {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 64)
-                        } else if proposals.isEmpty {
-                            ContentUnavailableView(
-                                "No Requests",
-                                systemImage: "doc.text",
-                                description: Text("No \(selectedTab.displayName.lowercased()) requests.")
-                            )
-                            .padding(.top, 32)
-                        } else {
-                            ForEach(proposals) { proposal in
-                                ProposalCard(proposal: proposal) {
-                                    selectedProposal = proposal
-                                }
-                                .onAppear {
-                                    if proposal == proposals.last, hasMore, !isLoadingMore {
-                                        Task { await loadNextPage() }
+                    if selectedTab == .history {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(RequestsTab.historyCases, id: \.self) { filter in
+                                    FilterChip(
+                                        title: filter.displayName,
+                                        isSelected: historyFilter == filter
+                                    ) {
+                                        historyFilter = filter
                                     }
                                 }
                             }
+                        }
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                    }
+                }
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
 
-                            if isLoadingMore {
-                                ProgressView()
-                                    .padding(.vertical, 8)
+                // Proposals
+                Section {
+                    if isLoading && proposals.isEmpty {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 64)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    } else if proposals.isEmpty {
+                        ContentUnavailableView(
+                            "No Requests",
+                            systemImage: "doc.text",
+                            description: Text("No \((selectedTab == .history ? historyFilter : selectedTab).displayName.lowercased()) requests.")
+                        )
+                        .padding(.top, 32)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(proposals) { proposal in
+                            ProposalCard(proposal: proposal) {
+                                selectedProposal = proposal
                             }
+                            .onAppear {
+                                if proposal == proposals.last, hasMore, !isLoadingMore {
+                                    Task { await loadNextPage() }
+                                }
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                        }
+
+                        if isLoadingMore {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 16)
-                }
-                .refreshable {
-                    await reload()
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Requests")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSearch.toggle()
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                    }
-                }
+            .searchable(text: $searchText, isPresented: $showSearch, placement: .toolbar, prompt: "Search requests")
+            .refreshable {
+                await reload()
             }
             .sheet(item: $selectedProposal) { proposal in
                 ProposalDetailView(proposalId: proposal.id)
             }
             .task(id: loadTrigger) {
-                await reload()
+                await reload(clearList: true)
             }
             .onAppear {
                 if needsRefresh {
@@ -128,11 +130,15 @@ struct ProposalsListView: View {
 
     // MARK: - Data Loading
 
-    private func reload() async {
+    private func reload(clearList: Bool = false) async {
         currentPage = 0
-        proposals = []
-        totalProposals = 0
-        isLoading = true
+        if clearList || proposals.isEmpty {
+            withAnimation {
+                proposals = []
+                totalProposals = 0
+                isLoading = true
+            }
+        }
         error = nil
 
         do {
@@ -141,15 +147,17 @@ struct ProposalsListView: View {
                 page: 0,
                 search: searchText.isEmpty ? nil : searchText
             )
-            proposals = result.proposals
-            totalProposals = result.total
+            withAnimation {
+                proposals = result.proposals
+                totalProposals = result.total
+                isLoading = false
+            }
         } catch is CancellationError {
             return
         } catch {
             self.error = error.localizedDescription
+            isLoading = false
         }
-
-        isLoading = false
     }
 
     private func loadNextPage() async {
@@ -162,8 +170,10 @@ struct ProposalsListView: View {
                 page: nextPage,
                 search: searchText.isEmpty ? nil : searchText
             )
-            proposals.append(contentsOf: result.proposals)
-            totalProposals = result.total
+            withAnimation {
+                proposals.append(contentsOf: result.proposals)
+                totalProposals = result.total
+            }
             currentPage = nextPage
         } catch is CancellationError {
             return
@@ -469,10 +479,6 @@ struct ProposalCard: View {
         let accountId = authService.currentUser?.accountId ?? ""
 
         HStack {
-            Text("Voting")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
             Spacer()
 
             // Vote count
@@ -501,10 +507,14 @@ struct ProposalCard: View {
     // MARK: - Helpers
 
     private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy h:mm a"
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        return formatter.string(from: date) + " UTC"
+        let interval = Date.now.timeIntervalSince(date)
+        // Use relative format for dates within the last 7 days
+        if interval > 0 && interval < 7 * 24 * 3600 {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            return formatter.localizedString(for: date, relativeTo: .now)
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 }
 
