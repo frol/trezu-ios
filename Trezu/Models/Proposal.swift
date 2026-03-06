@@ -125,6 +125,134 @@ struct Proposal: Codable, Identifiable {
     var rejectionCount: Int {
         votes?.values.filter { $0 == Vote.reject.rawValue }.count ?? 0
     }
+
+    // MARK: - Client-side Expiration Detection
+
+    /// Exchange proposals expire after 24 hours.
+    private static let exchangeExpiryNanos: Double = 24 * 60 * 60 * 1_000_000_000
+
+    /// Determines the effective UI status, accounting for client-side expiration detection.
+    /// The blockchain status may still be `InProgress` even after the proposal period has elapsed,
+    /// because expiration is only finalized on-chain when someone interacts with the contract.
+    func effectiveStatus(proposalPeriod: String?) -> ProposalStatus {
+        guard status == .inProgress else { return status }
+        guard let submissionTime, let submissionNanos = Double(submissionTime) else { return status }
+
+        let nowNanos = Date.now.timeIntervalSince1970 * 1_000_000_000
+
+        // Exchange proposals have a fixed 24-hour expiry
+        if isExchange {
+            if submissionNanos + Self.exchangeExpiryNanos < nowNanos {
+                return .expired
+            }
+        }
+
+        // Other proposals use the policy's proposal_period
+        if let periodStr = proposalPeriod, let periodNanos = Double(periodStr) {
+            if submissionNanos + periodNanos < nowNanos {
+                return .expired
+            }
+        }
+
+        return .inProgress
+    }
+
+    /// Required funds for this proposal — returns (tokenId, amount) if applicable.
+    var requiredFunds: (tokenId: String, amount: String)? {
+        switch kind {
+        case .transfer(let action):
+            let tokenId = action.tokenId ?? "near"
+            return (tokenId: tokenId.isEmpty ? "near" : tokenId, amount: action.amount)
+        case .functionCall(let fc):
+            return extractFunctionCallRequiredFunds(fc)
+        default:
+            return nil
+        }
+    }
+
+    private func extractFunctionCallRequiredFunds(_ fc: FunctionCallAction) -> (tokenId: String, amount: String)? {
+        // near_withdraw (wrap.near unwrap)
+        if let action = fc.actions.first(where: { $0.methodName == "near_withdraw" }),
+           fc.receiverId == "wrap.near" {
+            if let args = action.decodedArgs, let amount = args["amount"] as? String {
+                return (tokenId: "wrap.near", amount: amount)
+            }
+        }
+
+        // near_deposit (wrap.near wrap) — uses deposit amount
+        if let action = fc.actions.first(where: { $0.methodName == "near_deposit" }),
+           fc.receiverId == "wrap.near" {
+            if !action.deposit.isEmpty, action.deposit != "0" {
+                return (tokenId: "near", amount: action.deposit)
+            }
+        }
+
+        // ft_transfer / ft_transfer_call
+        if let action = fc.actions.first(where: { $0.methodName == "ft_transfer" || $0.methodName == "ft_transfer_call" }) {
+            if let args = action.decodedArgs {
+                let amount = args["amount"] as? String ?? "0"
+                if action.methodName == "ft_transfer" {
+                    return (tokenId: fc.receiverId, amount: amount)
+                }
+                // ft_transfer_call — check if batch payment
+                if let receiverId = args["receiver_id"] as? String,
+                   receiverId == bulkPaymentContractId {
+                    return (tokenId: fc.receiverId, amount: amount)
+                }
+                return (tokenId: fc.receiverId, amount: amount)
+            }
+        }
+
+        // ft_withdraw (Intents withdrawal)
+        if let action = fc.actions.first(where: { $0.methodName == "ft_withdraw" }) {
+            if let args = action.decodedArgs,
+               let amount = args["amount"] as? String,
+               let token = args["token"] as? String {
+                return (tokenId: "nep141:\(token)", amount: amount)
+            }
+        }
+
+        // mt_transfer / mt_transfer_call
+        if let action = fc.actions.first(where: { $0.methodName == "mt_transfer" || $0.methodName == "mt_transfer_call" }) {
+            if let args = action.decodedArgs {
+                let amount = args["amount"] as? String ?? "0"
+                let tokenId = args["token_id"] as? String ?? fc.receiverId
+                if let receiverId = args["receiver_id"] as? String,
+                   receiverId == bulkPaymentContractId {
+                    return (tokenId: tokenId, amount: amount)
+                }
+                return (tokenId: tokenId, amount: amount)
+            }
+        }
+
+        // approve_list (NEAR batch payment via bulkpayment.near)
+        if fc.receiverId == bulkPaymentContractId,
+           let action = fc.actions.first(where: { $0.methodName == "approve_list" }) {
+            if !action.deposit.isEmpty, action.deposit != "0" {
+                return (tokenId: "near", amount: action.deposit)
+            }
+        }
+
+        // Staking proposals (deposit_and_stake, deposit)
+        if let action = fc.actions.first(where: { $0.methodName == "deposit_and_stake" || $0.methodName == "deposit" }) {
+            if let args = action.decodedArgs, let amount = args["amount"] as? String {
+                return (tokenId: "near", amount: amount)
+            }
+            if !action.deposit.isEmpty, action.deposit != "0" {
+                return (tokenId: "near", amount: action.deposit)
+            }
+        }
+
+        // Vesting proposal (create on lockup.near with NEAR deposit)
+        if let action = fc.actions.first(where: { $0.methodName == "create" }),
+           fc.receiverId.contains("lockup.near") {
+            if !action.deposit.isEmpty, action.deposit != "0" {
+                return (tokenId: "near", amount: action.deposit)
+            }
+        }
+
+        return nil
+    }
 }
 
 // MARK: - Exchange Data
@@ -271,6 +399,7 @@ enum ProposalStatus: String, Codable, CaseIterable {
     }
 
     var isPending: Bool { self == .inProgress }
+    var isTerminal: Bool { self != .inProgress }
 }
 
 // MARK: - Vote

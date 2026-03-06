@@ -64,12 +64,16 @@ struct ProposalDetailView: View {
                         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                         .padding(.horizontal)
 
-                        // Vote actions for pending proposals
-                        if proposal.status.isPending {
+                        // Vote actions for pending proposals (with client-side expiration check)
+                        if proposal.effectiveStatus(proposalPeriod: treasuryService.policy?.proposalPeriod).isPending {
                             voteActionsSection(proposal)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 16)
                                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
+                                .padding(.horizontal)
+                        } else if proposal.status.isPending {
+                            // Server still says InProgress but client detected expiration
+                            expiredBanner
                                 .padding(.horizontal)
                         }
 
@@ -221,10 +225,11 @@ struct ProposalDetailView: View {
 
     @ViewBuilder
     private func statusRow(_ proposal: Proposal) -> some View {
-        let color = statusColor(proposal.status)
+        let effective = proposal.effectiveStatus(proposalPeriod: treasuryService.policy?.proposalPeriod)
+        let color = statusColor(effective)
         HStack(spacing: 6) {
-            Image(systemName: statusIcon(proposal.status))
-            Text(proposal.status.displayName)
+            Image(systemName: statusIcon(effective))
+            Text(effective.displayName)
                 .font(.subheadline.weight(.semibold))
         }
         .foregroundStyle(color)
@@ -433,6 +438,7 @@ struct ProposalDetailView: View {
     @ViewBuilder
     private func voteActionsSection(_ proposal: Proposal) -> some View {
         let hasUserVoted = proposal.userVote(accountId: currentAccountId) != nil
+        let balanceWarning = insufficientBalanceMessage(for: proposal)
 
         if hasUserVoted && voteSuccess == nil {
             HStack(spacing: 8) {
@@ -447,6 +453,20 @@ struct ProposalDetailView: View {
             .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
         } else if !hasUserVoted && voteSuccess == nil {
             VStack(spacing: 12) {
+                // Insufficient balance warning
+                if let balanceWarning {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(balanceWarning)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                }
+
                 if let voteError {
                     Text(voteError)
                         .font(.caption)
@@ -481,10 +501,15 @@ struct ProposalDetailView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(Color.primary, in: RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(Color(.systemBackground))
+                        .background(
+                            balanceWarning != nil ? Color(.systemGray4) : Color.primary,
+                            in: RoundedRectangle(cornerRadius: 12)
+                        )
+                        .foregroundStyle(
+                            balanceWarning != nil ? .secondary : Color(.systemBackground)
+                        )
                     }
-                    .disabled(isVoting)
+                    .disabled(isVoting || balanceWarning != nil)
                 }
 
                 if isVoting {
@@ -492,6 +517,57 @@ struct ProposalDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Expired Banner
+
+    private var expiredBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .foregroundStyle(.orange)
+            Text("This request has expired and can no longer be voted on.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Insufficient Balance Check
+
+    /// Returns a user-facing message if the treasury has insufficient balance for this proposal, or nil.
+    private func insufficientBalanceMessage(for proposal: Proposal) -> String? {
+        guard let funds = proposal.requiredFunds else { return nil }
+
+        let tokenId = funds.tokenId
+        let requiredStr = funds.amount
+
+        guard let required = Decimal(string: requiredStr), required > 0 else { return nil }
+
+        // Find the matching treasury asset
+        let isNear = tokenId == "near" || tokenId.isEmpty
+        let asset: TreasuryAsset?
+        if isNear {
+            asset = treasuryService.assets.first { $0.contractId == nil || $0.symbol == "NEAR" }
+        } else {
+            // Strip nep141: prefix if present
+            let cleanId = tokenId.hasPrefix("nep141:") ? String(tokenId.dropFirst(7)) : tokenId
+            asset = treasuryService.assets.first { $0.contractId == cleanId }
+        }
+
+        guard let asset else { return nil }
+
+        let available = Decimal(string: asset.totalBalance) ?? 0
+        guard required > available else { return nil }
+
+        // Calculate the shortfall
+        let difference = required - available
+        let symbol = asset.symbol
+        let decimals = asset.decimals
+        let formattedDiff = formatTokenAmount("\(difference)", decimals: decimals)
+
+        return "This request can't be approved because the treasury has insufficient \(symbol) balance. Add \(formattedDiff) \(symbol) to continue."
     }
 
     // MARK: - View Transaction Button

@@ -500,8 +500,12 @@ struct ProposalCard: View {
         let approvals = proposal.approvalCount
         let policy = treasuryService.policy
         let accountId = authService.currentUser?.accountId ?? ""
+        let effective = proposal.effectiveStatus(proposalPeriod: policy?.proposalPeriod)
 
         HStack {
+            // Status pill
+            statusPill(effective)
+
             Spacer()
 
             // Vote count
@@ -510,7 +514,7 @@ struct ProposalCard: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.green)
 
-                if proposal.status.isPending, let policy {
+                if effective.isPending, let policy {
                     let required = policy.requiredVotes(for: proposal.kind, accountId: accountId)
                     Text("\(approvals)/\(required)")
                         .font(.subheadline.weight(.medium))
@@ -524,6 +528,26 @@ struct ProposalCard: View {
             if let votes = proposal.votes, !votes.isEmpty {
                 CompactVoterAvatars(votes: votes)
             }
+        }
+    }
+
+    private func statusPill(_ status: ProposalStatus) -> some View {
+        Text(status.displayName)
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(statusPillColor(status).opacity(0.12), in: Capsule())
+            .foregroundStyle(statusPillColor(status))
+    }
+
+    private func statusPillColor(_ status: ProposalStatus) -> Color {
+        switch status {
+        case .approved: return .green
+        case .rejected: return .red
+        case .inProgress: return .orange
+        case .expired: return .gray
+        case .failed: return .red
+        default: return .secondary
         }
     }
 
