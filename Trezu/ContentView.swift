@@ -28,6 +28,7 @@ struct RootView: View {
 struct TreasuryRootView: View {
     @Environment(AuthService.self) private var authService
     @Environment(TreasuryService.self) private var treasuryService
+    @EnvironmentObject private var walletManager: NEARWalletManager
 
     var body: some View {
         Group {
@@ -36,11 +37,20 @@ struct TreasuryRootView: View {
             } else if treasuryService.isLoading {
                 ProgressView("Loading treasuries...")
             } else if treasuryService.treasuries.isEmpty {
-                ContentUnavailableView(
-                    "No Treasuries",
-                    systemImage: "building.columns",
-                    description: Text("You don't have access to any treasuries yet.")
-                )
+                VStack(spacing: 20) {
+                    ContentUnavailableView(
+                        "No Treasuries",
+                        systemImage: "building.columns",
+                        description: Text("You don't have access to any treasuries yet.")
+                    )
+
+                    Button {
+                        Task { await authService.signOut(walletManager: walletManager) }
+                    } label: {
+                        Label("Sign in with a Different Account", systemImage: "person.crop.circle.badge.plus")
+                    }
+                    .buttonStyle(.bordered)
+                }
             } else {
                 ProgressView()
             }
