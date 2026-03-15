@@ -102,6 +102,78 @@ enum TokenResidency: String, Codable {
     case intents = "Intents"
     case lockup = "Lockup"
     case staked = "Staked"
+
+    var displayName: String {
+        switch self {
+        case .near: return "Native Token"
+        case .ft: return "Fungible Token"
+        case .intents: return "Intents Token"
+        case .lockup: return "Vested Token"
+        case .staked: return "Staked"
+        }
+    }
+}
+
+// MARK: - Aggregated Asset (groups same-token assets across residencies)
+
+struct AggregatedAsset: Identifiable {
+    let id: String              // token symbol (uppercased)
+    let symbol: String
+    let name: String
+    let icon: String?
+    let decimals: Int
+    let price: Double?
+    let assets: [TreasuryAsset] // individual sub-assets
+
+    var totalBalanceRaw: Decimal {
+        assets.reduce(Decimal.zero) { sum, asset in
+            sum + (Decimal(string: asset.totalBalance) ?? 0)
+        }
+    }
+
+    var totalBalanceUSD: Double {
+        assets.compactMap { $0.balanceUSD }.reduce(0, +)
+    }
+
+    var formattedBalance: String {
+        formatTokenAmount("\(totalBalanceRaw)", decimals: decimals, tokenPrice: price)
+    }
+
+    var formattedBalanceUSD: String {
+        if totalBalanceUSD > 0 {
+            return formatCurrency(totalBalanceUSD)
+        }
+        return "--"
+    }
+
+    var isAggregated: Bool { assets.count > 1 }
+
+    static func aggregate(_ assets: [TreasuryAsset]) -> [AggregatedAsset] {
+        // Group by symbol (case-insensitive)
+        var groups: [String: [TreasuryAsset]] = [:]
+        var order: [String] = []
+
+        for asset in assets {
+            let key = asset.symbol.uppercased()
+            if groups[key] == nil {
+                order.append(key)
+            }
+            groups[key, default: []].append(asset)
+        }
+
+        return order.compactMap { key in
+            guard let group = groups[key], let first = group.first else { return nil }
+            return AggregatedAsset(
+                id: key,
+                symbol: first.symbol,
+                name: first.name,
+                icon: first.icon,
+                decimals: first.decimals,
+                price: first.price.flatMap { Double($0) },
+                assets: group
+            )
+        }
+    }
 }
 
 // MARK: - TokenMetadata

@@ -14,7 +14,6 @@ struct ProposalsListView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var error: String?
-    @State private var showSearch = false
     @State private var selectedProposal: Proposal?
     /// Tracks whether we need to reload on next appearance (e.g. returning from detail).
     @State private var needsRefresh = false
@@ -66,32 +65,14 @@ struct ProposalsListView: View {
                     .id(loadTrigger)
                     .transition(.push(from: slideFromTrailing ? .trailing : .leading))
             }
-            .overlay(alignment: .bottomTrailing) {
-                if !showSearch {
-                    Button {
-                        showSearch = true
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 52, height: 52)
-                            .background(Color.accentColor, in: Circle())
-                            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
-                    }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 20)
-                }
-            }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Requests")
-            .searchable(text: $searchText, isPresented: $showSearch, placement: .toolbar, prompt: "Search requests")
             .sheet(item: $selectedProposal) { proposal in
                 ProposalDetailView(proposalId: proposal.id)
             }
             .onChange(of: selectedTab) { oldValue, newValue in
                 slideFromTrailing = newValue == .history
             }
-//            .animation(.smooth(duration: 0.3), value: loadTrigger)
             .task(id: loadTrigger) {
                 await reload(clearList: true)
             }

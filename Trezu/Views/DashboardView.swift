@@ -4,6 +4,7 @@ import WebKit
 struct DashboardView: View {
     @Environment(TreasuryService.self) private var treasuryService
     @State private var showTreasuryPicker = false
+    @State private var expandedGroups: Set<String> = []
 
     var body: some View {
         NavigationStack {
@@ -118,6 +119,10 @@ struct DashboardView: View {
 
     // MARK: - Portfolio Card
 
+    private var aggregatedAssets: [AggregatedAsset] {
+        AggregatedAsset.aggregate(treasuryService.assets)
+    }
+
     @ViewBuilder
     private var portfolioCard: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -128,32 +133,11 @@ struct DashboardView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 12)
 
-                ForEach(Array(treasuryService.assets.enumerated()), id: \.element.id) { index, asset in
-                    HStack(spacing: 12) {
-                        TokenIconView(icon: asset.icon, symbol: asset.symbol)
+                let groups = aggregatedAssets
+                ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                    assetGroupRow(group)
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(asset.symbol)
-                                .font(.body.weight(.medium))
-                            Text(asset.name)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(asset.formattedBalance)
-                                .font(.body.weight(.medium))
-                            Text(asset.formattedBalanceUSD)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-
-                    if index < treasuryService.assets.count - 1 {
+                    if index < groups.count - 1 {
                         Divider()
                             .padding(.leading, 64)
                     }
@@ -178,6 +162,112 @@ struct DashboardView: View {
         }
         .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20))
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+    }
+
+    // MARK: - Asset Group Row
+
+    @ViewBuilder
+    private func assetGroupRow(_ group: AggregatedAsset) -> some View {
+        let isExpanded = expandedGroups.contains(group.id)
+
+        VStack(spacing: 0) {
+            // Main row (tap to expand if aggregated)
+            Button {
+                if group.isAggregated {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        if isExpanded {
+                            expandedGroups.remove(group.id)
+                        } else {
+                            expandedGroups.insert(group.id)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    TokenIconView(icon: group.icon, symbol: group.symbol)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text(group.symbol)
+                                .font(.body.weight(.medium))
+                            if group.isAggregated {
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(group.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(group.formattedBalance)
+                            .font(.body.weight(.medium))
+                        Text(group.formattedBalanceUSD)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // Expanded sub-assets
+            if isExpanded, group.isAggregated {
+                VStack(spacing: 0) {
+                    ForEach(Array(group.assets.enumerated()), id: \.element.id) { subIndex, asset in
+                        HStack(spacing: 12) {
+                            // Indent with residency icon
+                            Image(systemName: residencyIcon(asset.residency))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 36, height: 36)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(asset.residency?.displayName ?? asset.symbol)
+                                    .font(.subheadline.weight(.medium))
+                            }
+
+                            Spacer()
+
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(asset.formattedBalance)
+                                    .font(.subheadline)
+                                Text(asset.formattedBalanceUSD)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+
+                        if subIndex < group.assets.count - 1 {
+                            Divider()
+                                .padding(.leading, 64)
+                        }
+                    }
+                }
+                .padding(.bottom, 4)
+                .background(Color(.tertiarySystemGroupedBackground))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private func residencyIcon(_ residency: TokenResidency?) -> String {
+        switch residency {
+        case .near: return "circle.fill"
+        case .ft: return "dot.radiowaves.right"
+        case .intents: return "arrow.triangle.swap"
+        case .staked: return "chart.line.uptrend.xyaxis"
+        case .lockup: return "lock.fill"
+        case nil: return "circle.fill"
+        }
     }
 }
 
