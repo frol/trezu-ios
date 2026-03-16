@@ -256,6 +256,14 @@ final class APIClient {
         ])
     }
 
+    func getTokenBalance(accountId: String, tokenId: String, network: String) async throws -> TokenBalance {
+        try await request(path: "user/balance", queryItems: [
+            URLQueryItem(name: "accountId", value: accountId),
+            URLQueryItem(name: "tokenId", value: tokenId),
+            URLQueryItem(name: "network", value: network)
+        ])
+    }
+
     // MARK: - Profile
 
     func getUserProfile(accountId: String) async -> UserProfile? {

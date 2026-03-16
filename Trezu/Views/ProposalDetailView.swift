@@ -22,6 +22,7 @@ struct ProposalDetailView: View {
     @State private var voteError: String?
     @State private var voteSuccess: Vote?
     @State private var showUTC = false
+    @State private var insufficientBalanceWarning: String?
 
     private var currentAccountId: String {
         authService.currentUser?.accountId ?? ""
@@ -438,7 +439,7 @@ struct ProposalDetailView: View {
     @ViewBuilder
     private func voteActionsSection(_ proposal: Proposal) -> some View {
         let hasUserVoted = proposal.userVote(accountId: currentAccountId) != nil
-        let balanceWarning = insufficientBalanceMessage(for: proposal)
+        let balanceWarning = insufficientBalanceWarning
 
         if hasUserVoted && voteSuccess == nil {
             HStack(spacing: 8) {
@@ -536,38 +537,58 @@ struct ProposalDetailView: View {
 
     // MARK: - Insufficient Balance Check
 
-    /// Returns a user-facing message if the treasury has insufficient balance for this proposal, or nil.
-    private func insufficientBalanceMessage(for proposal: Proposal) -> String? {
-        guard let funds = proposal.requiredFunds else { return nil }
+    /// Fetches the token balance from the API and checks if the treasury has enough funds for this proposal.
+    private func checkInsufficientBalance(for proposal: Proposal) async {
+        guard let funds = proposal.requiredFunds else {
+            insufficientBalanceWarning = nil
+            return
+        }
 
         let tokenId = funds.tokenId
         let requiredStr = funds.amount
 
-        guard let required = Decimal(string: requiredStr), required > 0 else { return nil }
-
-        // Find the matching treasury asset
-        let isNear = tokenId == "near" || tokenId.isEmpty
-        let asset: TreasuryAsset?
-        if isNear {
-            asset = treasuryService.assets.first { $0.contractId == nil || $0.symbol == "NEAR" }
-        } else {
-            // Strip nep141: prefix if present
-            let cleanId = tokenId.hasPrefix("nep141:") ? String(tokenId.dropFirst(7)) : tokenId
-            asset = treasuryService.assets.first { $0.contractId == cleanId }
+        guard let required = Decimal(string: requiredStr), required > 0 else {
+            insufficientBalanceWarning = nil
+            return
         }
 
-        guard let asset else { return nil }
+        guard let daoId = treasuryService.daoId else {
+            insufficientBalanceWarning = nil
+            return
+        }
 
-        let available = Decimal(string: asset.totalBalance) ?? 0
-        guard required > available else { return nil }
+        // Fetch token metadata to get the network and symbol/decimals
+        let metadataTokenId = (tokenId == "near" || tokenId.isEmpty) ? "near" : tokenId
+        guard let metadata = try? await APIClient.shared.getTokenMetadata(tokenId: metadataTokenId) else {
+            insufficientBalanceWarning = nil
+            return
+        }
+
+        let network = metadata.network ?? "near"
+
+        // Fetch the actual balance from the dedicated balance endpoint
+        guard let tokenBalance = try? await APIClient.shared.getTokenBalance(
+            accountId: daoId,
+            tokenId: metadataTokenId,
+            network: network
+        ) else {
+            insufficientBalanceWarning = nil
+            return
+        }
+
+        let available = Decimal(string: tokenBalance.balance) ?? 0
+        guard required > available else {
+            insufficientBalanceWarning = nil
+            return
+        }
 
         // Calculate the shortfall
         let difference = required - available
-        let symbol = asset.symbol
-        let decimals = asset.decimals
+        let symbol = metadata.symbol
+        let decimals = metadata.decimals
         let formattedDiff = formatTokenAmount("\(difference)", decimals: decimals)
 
-        return "This request can't be approved because the treasury has insufficient \(symbol) balance. Add \(formattedDiff) \(symbol) to continue."
+        insufficientBalanceWarning = "This request can't be approved because the treasury has insufficient \(symbol) balance. Add \(formattedDiff) \(symbol) to continue."
     }
 
     // MARK: - View Transaction Button
@@ -680,6 +701,9 @@ struct ProposalDetailView: View {
                 exchangeTokenIn = await tokenInMeta
                 exchangeTokenOut = await tokenOutMeta
             }
+
+            // Check insufficient balance (fetches from /user/balance API)
+            await checkInsufficientBalance(for: loaded)
         } catch {
             self.error = error.localizedDescription
         }

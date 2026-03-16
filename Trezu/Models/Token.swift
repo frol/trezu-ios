@@ -176,6 +176,16 @@ struct AggregatedAsset: Identifiable {
     }
 }
 
+// MARK: - Token Balance (from /user/balance endpoint)
+
+struct TokenBalance: Codable {
+    let accountId: String
+    let tokenId: String
+    let balance: String
+    let lockedBalance: String?
+    let decimals: Int
+}
+
 // MARK: - TokenMetadata
 
 struct TokenMetadata: Codable, Identifiable {
