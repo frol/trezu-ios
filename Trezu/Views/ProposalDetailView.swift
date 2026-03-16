@@ -106,6 +106,7 @@ struct ProposalDetailView: View {
             }
         }
         .task { await loadProposal() }
+        .interactiveDismissDisabled(isVoting)
         .alert("Confirm Vote", isPresented: $showVoteConfirmation, presenting: pendingVote) { vote in
             Button("Cancel", role: .cancel) { }
             Button(vote.rawValue, role: vote == .reject ? .destructive : nil) {

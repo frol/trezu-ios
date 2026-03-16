@@ -515,6 +515,11 @@ struct TreasuryPickerSheet: View {
                         dismiss()
                     }
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Link(destination: URL(string: "https://trezu.app/app/new")!) {
+                        Image(systemName: "plus")
+                    }
+                }
             }
         }
     }

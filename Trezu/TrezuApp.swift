@@ -3,7 +3,12 @@ import NEARConnect
 
 @main
 struct TrezuApp: App {
-    @StateObject private var walletManager = NEARWalletManager()
+    @StateObject private var walletManager = NEARWalletManager(
+        features: [
+            "signInAndSignMessage": true,
+            "signDelegateActions": true,
+        ]
+    )
     @State private var authService = AuthService()
     @State private var treasuryService = TreasuryService()
 

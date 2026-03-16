@@ -90,6 +90,21 @@ struct SignInView: View {
                     .disabled(authService.isLoading || walletManager.isBusy)
                     .padding(.horizontal, 40)
 
+                    Spacer()
+                        .frame(height: 12)
+
+                    // Create new treasury link
+                    Link(destination: URL(string: "https://trezu.app/app/new")!) {
+                        Text("Create New Treasury")
+                            .font(.body.weight(.medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color(.systemGray6))
+                            .foregroundStyle(.primary)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.horizontal, 40)
+
                     if let error = authService.error {
                         Text(error)
                             .font(.caption)

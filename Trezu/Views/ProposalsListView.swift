@@ -14,7 +14,7 @@ struct ProposalsListView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var error: String?
-    @State private var selectedProposal: Proposal?
+    @State private var selectedProposalId: Int?
     /// Tracks whether we need to reload on next appearance (e.g. returning from detail).
     @State private var needsRefresh = false
     /// Slide direction for tab transitions.
@@ -67,8 +67,13 @@ struct ProposalsListView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Requests")
-            .sheet(item: $selectedProposal) { proposal in
-                ProposalDetailView(proposalId: proposal.id)
+            .sheet(isPresented: Binding(
+                get: { selectedProposalId != nil },
+                set: { if !$0 { selectedProposalId = nil } }
+            )) {
+                if let proposalId = selectedProposalId {
+                    ProposalDetailView(proposalId: proposalId)
+                }
             }
             .onChange(of: selectedTab) { oldValue, newValue in
                 slideFromTrailing = newValue == .history
@@ -77,13 +82,15 @@ struct ProposalsListView: View {
                 await reload(clearList: true)
             }
             .onAppear {
-                if needsRefresh {
+                if needsRefresh, selectedProposalId == nil {
                     needsRefresh = false
                     Task { await reload() }
                 }
             }
             .onDisappear {
-                needsRefresh = true
+                if selectedProposalId == nil {
+                    needsRefresh = true
+                }
             }
         }
     }
@@ -110,7 +117,7 @@ struct ProposalsListView: View {
             } else {
                 ForEach(proposals) { proposal in
                     ProposalCard(proposal: proposal) {
-                        selectedProposal = proposal
+                        selectedProposalId = proposal.id
                     }
                     .onAppear {
                         if proposal == proposals.last, hasMore, !isLoadingMore {
